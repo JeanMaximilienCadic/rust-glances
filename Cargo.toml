@@ -1,0 +1,67 @@
+[package]
+name = "glances"
+version = "0.1.0"
+edition = "2021"
+description = "A modern Glances-inspired TUI system monitor written in Rust — CPU, memory, GPU, Docker, network, disk, battery, alerts, and container API testing"
+license = "MIT"
+repository = "https://github.com/jcadic/rust-glances"
+keywords = ["monitoring", "system", "tui", "gpu", "docker"]
+categories = ["command-line-utilities", "development-tools::profiling"]
+
+[[bin]]
+name = "glances"
+path = "src/main.rs"
+
+[dependencies]
+# TUI framework
+ratatui = "0.29"
+crossterm = "0.28"
+
+# System metrics
+sysinfo = "0.32"
+
+# Async runtime
+tokio = { version = "1", features = ["full"] }
+
+# Error handling
+anyhow = "1.0"
+thiserror = "1.0"
+
+# Time handling
+chrono = "0.4"
+
+# Human-readable formatting
+humansize = "2"
+
+# CLI argument parsing
+clap = { version = "4", features = ["derive"] }
+
+# Config file
+serde = { version = "1", features = ["derive"] }
+toml = "0.8"
+
+# Battery monitoring
+battery = "0.7"
+
+# HTTP client for container API testing
+reqwest = { version = "0.12", features = ["blocking", "json"] }
+
+# Docker monitoring
+bollard = "0.18"
+futures-util = "0.3"
+futures-core = "0.3"
+
+# NVIDIA GPU support (Linux/Windows)
+[target.'cfg(not(target_os = "macos"))'.dependencies]
+nvml-wrapper = "0.10"
+
+# Metal GPU support (macOS)
+[target.'cfg(target_os = "macos")'.dependencies]
+metal = "0.31"
+core-foundation = "0.10"
+objc2 = "0.6"
+
+[profile.release]
+lto = true
+codegen-units = 1
+panic = "abort"
