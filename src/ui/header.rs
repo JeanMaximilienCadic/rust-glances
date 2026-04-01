@@ -35,7 +35,7 @@ pub fn render_header(frame: &mut Frame, area: Rect, app: &App) {
 
     let mut header = Line::from(vec![
         Span::styled(
-            " rustglances ",
+            " glances ",
             Style::default()
                 .fg(Color::Rgb(130, 170, 255))
                 .add_modifier(Modifier::BOLD),

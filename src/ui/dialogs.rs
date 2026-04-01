@@ -100,7 +100,7 @@ pub fn render_help(frame: &mut Frame, area: Rect) {
     let help_text = vec![
         Line::from(vec![
             Span::styled(
-                "rustglances",
+                "glances",
                 Style::default()
                     .fg(Color::Cyan)
                     .add_modifier(Modifier::BOLD),

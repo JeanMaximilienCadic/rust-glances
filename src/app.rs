@@ -96,6 +96,8 @@ pub struct AlertEvent {
     pub message: String,
     pub level: AlertLevel,
     pub ongoing: bool,
+    /// Top processes contributing to this alert (name, value).
+    pub top_processes: Vec<(String, String)>,
 }
 
 #[derive(Clone, PartialEq)]
@@ -289,7 +291,45 @@ impl App {
         Ok(())
     }
 
-    /// Check for alert conditions and generate events.
+    /// Get top N processes by a metric.
+    fn top_procs_by_cpu(&self, n: usize) -> Vec<(String, String)> {
+        let mut procs = self.system_metrics.processes.clone();
+        procs.sort_by(|a, b| b.cpu_usage.partial_cmp(&a.cpu_usage).unwrap_or(std::cmp::Ordering::Equal));
+        procs.iter().take(n)
+            .filter(|p| p.cpu_usage > 1.0)
+            .map(|p| (p.name.clone(), format!("{:.1}%", p.cpu_usage)))
+            .collect()
+    }
+
+    fn top_procs_by_mem(&self, n: usize) -> Vec<(String, String)> {
+        let mut procs = self.system_metrics.processes.clone();
+        procs.sort_by(|a, b| b.memory_bytes.cmp(&a.memory_bytes));
+        procs.iter().take(n)
+            .filter(|p| p.memory_usage > 1.0)
+            .map(|p| (p.name.clone(), format!("{:.1}%", p.memory_usage)))
+            .collect()
+    }
+
+    fn top_procs_by_io(&self, n: usize) -> Vec<(String, String)> {
+        let mut procs = self.system_metrics.processes.clone();
+        procs.sort_by(|a, b| {
+            let a_io = a.disk_read_rate + a.disk_write_rate;
+            let b_io = b.disk_read_rate + b.disk_write_rate;
+            b_io.partial_cmp(&a_io).unwrap_or(std::cmp::Ordering::Equal)
+        });
+        procs.iter().take(n)
+            .filter(|p| p.disk_read_rate + p.disk_write_rate > 0.0)
+            .map(|p| {
+                let io = p.disk_read_rate + p.disk_write_rate;
+                let io_str = if io >= 1_048_576.0 { format!("{:.1}MB/s", io / 1_048_576.0) }
+                    else if io >= 1024.0 { format!("{:.0}KB/s", io / 1024.0) }
+                    else { format!("{:.0}B/s", io) };
+                (p.name.clone(), io_str)
+            })
+            .collect()
+    }
+
+    /// Check for alert conditions and generate events with top contributing processes.
     fn check_alerts(&mut self) {
         let now = chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
 
@@ -297,36 +337,57 @@ impl App {
         let mem = &self.system_metrics.memory;
         let mem_pct = if mem.total > 0 { (mem.used as f64 / mem.total as f64) * 100.0 } else { 0.0 };
 
-        let has_mem_alert = self.alerts.iter().any(|a| a.message.contains("MEM") && a.ongoing);
+        let has_mem_alert = self.alerts.iter().any(|a| a.message.starts_with("MEM") && a.ongoing);
         if mem_pct >= 75.0 && !has_mem_alert {
+            let top = self.top_procs_by_mem(3);
             self.alerts.push(AlertEvent {
                 timestamp: now.clone(),
                 message: format!("MEM ({:.1}%)", mem_pct),
                 level: if mem_pct >= 90.0 { AlertLevel::Critical } else { AlertLevel::Warning },
                 ongoing: true,
+                top_processes: top,
             });
         } else if mem_pct < 70.0 {
             for alert in &mut self.alerts {
-                if alert.message.contains("MEM") && alert.ongoing {
+                if alert.message.starts_with("MEM") && alert.ongoing {
                     alert.ongoing = false;
+                }
+            }
+        } else if mem_pct >= 75.0 {
+            // Update top processes on ongoing alert
+            let top = self.top_procs_by_mem(3);
+            for alert in &mut self.alerts {
+                if alert.message.starts_with("MEM") && alert.ongoing {
+                    alert.top_processes = top.clone();
+                    alert.message = format!("MEM ({:.1}%)", mem_pct);
                 }
             }
         }
 
         // CPU alert
         let cpu_pct = self.system_metrics.cpu_global as f64;
-        let has_cpu_alert = self.alerts.iter().any(|a| a.message.contains("CPU") && a.ongoing);
+        let has_cpu_alert = self.alerts.iter().any(|a| a.message.starts_with("CPU") && a.ongoing);
         if cpu_pct >= 85.0 && !has_cpu_alert {
+            let top = self.top_procs_by_cpu(3);
             self.alerts.push(AlertEvent {
                 timestamp: now.clone(),
                 message: format!("CPU ({:.1}%)", cpu_pct),
                 level: if cpu_pct >= 95.0 { AlertLevel::Critical } else { AlertLevel::Warning },
                 ongoing: true,
+                top_processes: top,
             });
         } else if cpu_pct < 80.0 {
             for alert in &mut self.alerts {
-                if alert.message.contains("CPU") && alert.ongoing {
+                if alert.message.starts_with("CPU") && alert.ongoing {
                     alert.ongoing = false;
+                }
+            }
+        } else if cpu_pct >= 85.0 {
+            let top = self.top_procs_by_cpu(3);
+            for alert in &mut self.alerts {
+                if alert.message.starts_with("CPU") && alert.ongoing {
+                    alert.top_processes = top.clone();
+                    alert.message = format!("CPU ({:.1}%)", cpu_pct);
                 }
             }
         }
@@ -334,18 +395,28 @@ impl App {
         // Load alert
         let cores = self.system_metrics.cpu_count;
         let load_ratio = if cores > 0 { self.system_metrics.load_avg.0 / cores as f64 } else { 0.0 };
-        let has_load_alert = self.alerts.iter().any(|a| a.message.contains("LOAD") && a.ongoing);
+        let has_load_alert = self.alerts.iter().any(|a| a.message.starts_with("LOAD") && a.ongoing);
         if load_ratio >= 1.0 && !has_load_alert {
+            let top = self.top_procs_by_io(3);
             self.alerts.push(AlertEvent {
                 timestamp: now,
                 message: format!("LOAD ({:.2})", self.system_metrics.load_avg.0),
                 level: if load_ratio >= 2.0 { AlertLevel::Critical } else { AlertLevel::Warning },
                 ongoing: true,
+                top_processes: top,
             });
         } else if load_ratio < 0.8 {
             for alert in &mut self.alerts {
-                if alert.message.contains("LOAD") && alert.ongoing {
+                if alert.message.starts_with("LOAD") && alert.ongoing {
                     alert.ongoing = false;
+                }
+            }
+        } else if load_ratio >= 1.0 {
+            let top = self.top_procs_by_io(3);
+            for alert in &mut self.alerts {
+                if alert.message.starts_with("LOAD") && alert.ongoing {
+                    alert.top_processes = top.clone();
+                    alert.message = format!("LOAD ({:.2})", self.system_metrics.load_avg.0);
                 }
             }
         }
@@ -950,6 +1021,20 @@ impl App {
 
     /// Move the selection by a delta.
     fn move_selection(&mut self, delta: i32) {
+        // Docker tab: navigate docker containers
+        if self.active_tab == ViewTab::Docker {
+            let len = self.docker_containers.len();
+            if len == 0 { return; }
+            let current = self.docker_state.selected().unwrap_or(0);
+            let new = if delta > 0 {
+                (current + delta as usize).min(len - 1)
+            } else {
+                current.saturating_sub((-delta) as usize)
+            };
+            self.docker_state.select(Some(new));
+            return;
+        }
+
         let len = match self.active_panel {
             ActivePanel::CpuProcesses => self.get_sorted_cpu_processes().len(),
             ActivePanel::GpuProcesses => self.get_sorted_gpu_processes().len(),
@@ -975,6 +1060,13 @@ impl App {
 
     /// Move the selection to a specific position.
     fn move_selection_to(&mut self, pos: usize) {
+        if self.active_tab == ViewTab::Docker {
+            let len = self.docker_containers.len();
+            if len == 0 { return; }
+            self.docker_state.select(Some(pos.min(len - 1)));
+            return;
+        }
+
         let len = match self.active_panel {
             ActivePanel::CpuProcesses => self.get_sorted_cpu_processes().len(),
             ActivePanel::GpuProcesses => self.get_sorted_gpu_processes().len(),

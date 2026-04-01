@@ -1,4 +1,4 @@
-//! Data types and structures used throughout rustglances.
+//! Data types and structures used throughout glances.
 
 /// CPU core information.
 #[derive(Clone, Default)]

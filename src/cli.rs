@@ -3,7 +3,7 @@
 use clap::Parser;
 
 #[derive(Parser, Debug)]
-#[command(name = "rustglances", version, about = "A Glances-inspired system monitor in Rust")]
+#[command(name = "glances", version, about = "A modern system monitor in Rust")]
 pub struct Cli {
     /// Refresh rate in milliseconds
     #[arg(short, long, default_value_t = 1000)]

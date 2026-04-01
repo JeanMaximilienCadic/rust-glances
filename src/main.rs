@@ -1,4 +1,4 @@
-//! rustglances - A Glances-inspired system and GPU monitoring TUI written in Rust
+//! glances - A modern system and GPU monitoring TUI written in Rust
 
 mod app;
 mod cli;

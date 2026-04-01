@@ -78,7 +78,7 @@ pub fn render_cpu_processes(frame: &mut Frame, area: Rect, app: &mut App) {
                 Cell::from(io_str).style(Style::default().fg(if total_io > 0.0 { Color::Rgb(255, 180, 50) } else { Color::DarkGray })),
                 Cell::from(p.status.clone()),
                 Cell::from(p.name.clone()).style(Style::default().fg(Color::Rgb(80, 220, 120))),
-                Cell::from(truncate_string(&p.command, 40)),
+                Cell::from(p.command.clone()).style(Style::default().fg(Color::DarkGray)),
             ])
         })
         .collect();
@@ -105,7 +105,7 @@ pub fn render_cpu_processes(frame: &mut Frame, area: Rect, app: &mut App) {
             ratatui::layout::Constraint::Length(7),  // IO
             ratatui::layout::Constraint::Length(3),  // ST
             ratatui::layout::Constraint::Length(15), // NAME
-            ratatui::layout::Constraint::Min(20),   // COMMAND
+            ratatui::layout::Constraint::Min(0),    // COMMAND — uses all remaining width
         ],
     )
     .block(
@@ -234,7 +234,7 @@ pub fn render_gpu_processes(frame: &mut Frame, area: Rect, app: &mut App) {
                 Cell::from(p.user.clone()).style(Style::default().fg(Color::Cyan)),
                 Cell::from(format_size(p.gpu_memory, BINARY)),
                 Cell::from(p.name.clone()).style(Style::default().fg(Color::Green)),
-                Cell::from(truncate_string(&p.command, 40)),
+                Cell::from(p.command.clone()).style(Style::default().fg(Color::DarkGray)),
             ])
         })
         .collect();
@@ -259,7 +259,7 @@ pub fn render_gpu_processes(frame: &mut Frame, area: Rect, app: &mut App) {
             ratatui::layout::Constraint::Length(10),
             ratatui::layout::Constraint::Length(10),
             ratatui::layout::Constraint::Length(15),
-            ratatui::layout::Constraint::Min(20),
+            ratatui::layout::Constraint::Min(0),
         ],
     )
     .block(

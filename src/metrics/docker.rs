@@ -23,6 +23,9 @@ pub struct ContainerInfo {
     pub ports: String,
     pub created: i64,
     pub uptime_secs: u64,
+    pub compose_project: String,
+    pub compose_service: String,
+    pub compose_dir: String,
 }
 
 /// Docker metrics handle — owns its own tokio runtime for async bollard calls.
@@ -108,6 +111,18 @@ pub fn collect_docker_metrics(handle: &DockerHandle) -> Vec<ContainerInfo> {
             0
         };
 
+        // Extract docker-compose labels
+        let labels = container.labels.as_ref();
+        let compose_project = labels
+            .and_then(|l| l.get("com.docker.compose.project").cloned())
+            .unwrap_or_default();
+        let compose_service = labels
+            .and_then(|l| l.get("com.docker.compose.service").cloned())
+            .unwrap_or_default();
+        let compose_dir = labels
+            .and_then(|l| l.get("com.docker.compose.project.working_dir").cloned())
+            .unwrap_or_default();
+
         result.push(ContainerInfo {
             id: short_id,
             name,
@@ -117,6 +132,9 @@ pub fn collect_docker_metrics(handle: &DockerHandle) -> Vec<ContainerInfo> {
             ports,
             created,
             uptime_secs,
+            compose_project,
+            compose_service,
+            compose_dir,
             ..Default::default()
         });
     }
