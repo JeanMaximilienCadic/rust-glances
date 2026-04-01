@@ -32,4 +32,8 @@ pub struct Cli {
     /// Show per-core CPU bars
     #[arg(long)]
     pub per_core: bool,
+
+    /// Print GPU detection info and exit
+    #[arg(long, hide = true)]
+    pub debug_gpu: bool,
 }

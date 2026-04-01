@@ -1,6 +1,6 @@
 [package]
 name = "glances"
-version = "0.3.0"
+version = "0.4.0"
 edition = "2021"
 description = "A modern Glances-inspired TUI system monitor written in Rust — CPU, memory, GPU, Docker, network, disk, battery, alerts, and container API testing"
 license = "MIT"
@@ -11,6 +11,13 @@ categories = ["command-line-utilities", "development-tools::profiling"]
 [[bin]]
 name = "glances"
 path = "src/main.rs"
+
+[features]
+default = ["gpu", "docker"]
+full = ["gpu", "docker"]
+minimal = []
+gpu = ["dep:nvml-wrapper", "dep:metal", "dep:core-foundation", "dep:objc2"]
+docker = ["dep:bollard", "dep:futures-util", "dep:futures-core", "dep:reqwest"]
 
 [dependencies]
 # TUI framework
@@ -44,23 +51,23 @@ toml = "0.8"
 # Battery monitoring
 battery = "0.7"
 
-# HTTP client for container API testing
-reqwest = { version = "0.12", features = ["blocking", "json"] }
+# HTTP client for container API testing (requires docker feature)
+reqwest = { version = "0.12", features = ["blocking", "json"], optional = true }
 
-# Docker monitoring
-bollard = "0.18"
-futures-util = "0.3"
-futures-core = "0.3"
+# Docker monitoring (optional)
+bollard = { version = "0.18", optional = true }
+futures-util = { version = "0.3", optional = true }
+futures-core = { version = "0.3", optional = true }
 
-# NVIDIA GPU support (Linux/Windows)
+# NVIDIA GPU support (Linux/Windows, optional)
 [target.'cfg(not(target_os = "macos"))'.dependencies]
-nvml-wrapper = "0.10"
+nvml-wrapper = { version = "0.10", optional = true }
 
-# Metal GPU support (macOS)
+# Metal GPU support (macOS, optional)
 [target.'cfg(target_os = "macos")'.dependencies]
-metal = "0.31"
-core-foundation = "0.10"
-objc2 = "0.6"
+metal = { version = "0.31", optional = true }
+core-foundation = { version = "0.10", optional = true }
+objc2 = { version = "0.6", optional = true }
 
 [profile.release]
 lto = true

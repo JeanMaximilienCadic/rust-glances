@@ -24,9 +24,25 @@ mod nvml_backend {
 
     impl GpuHandle {
         pub fn new() -> Self {
-            Self {
-                nvml: Nvml::init().ok(),
-            }
+            use std::ffi::OsStr;
+            // Try standard init first, then with explicit library path for Linux
+            let nvml = match Nvml::init() {
+                Ok(n) => Some(n),
+                Err(_) => {
+                    // Try with versioned library name (common on Linux)
+                    match Nvml::builder().lib_path(OsStr::new("libnvidia-ml.so.1")).init() {
+                        Ok(n) => Some(n),
+                        Err(_) => {
+                            // Try full path as last resort
+                            Nvml::builder()
+                                .lib_path(OsStr::new("/usr/lib/x86_64-linux-gnu/libnvidia-ml.so.1"))
+                                .init()
+                                .ok()
+                        }
+                    }
+                }
+            };
+            Self { nvml }
         }
     }
 

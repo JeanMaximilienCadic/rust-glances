@@ -23,8 +23,71 @@ use app::App;
 use cli::Cli;
 use ui::render_ui;
 
+#[cfg(feature = "gpu")]
+fn debug_gpu() {
+    use metrics::GpuHandle;
+    use sysinfo::{System, Users};
+
+    println!("GPU Detection Debug");
+    println!("===================\n");
+
+    let handle = GpuHandle::new();
+
+    #[cfg(not(target_os = "macos"))]
+    {
+        if handle.nvml.is_some() {
+            println!("NVML: Initialized successfully!");
+        } else {
+            println!("NVML: Failed to initialize");
+            println!("\nPossible causes:");
+            println!("  - NVIDIA drivers not installed");
+            println!("  - libnvidia-ml.so not found in library path");
+            println!("  - Permission denied\n");
+            println!("Try: ls -la /usr/lib/x86_64-linux-gnu/libnvidia-ml*");
+            return;
+        }
+    }
+
+    let system = System::new_all();
+    let users = Users::new_with_refreshed_list();
+
+    if let Some(gpu_metrics) = metrics::collect_gpu_metrics(&handle, &system, &users) {
+        println!("Driver: {}", gpu_metrics.driver_version);
+        println!("CUDA:   {}", gpu_metrics.api_version);
+        println!("\nGPUs found: {}", gpu_metrics.gpus.len());
+
+        for gpu in &gpu_metrics.gpus {
+            println!("\n  [{}] {}", gpu.index, gpu.name);
+            println!("      Temp: {}°C, Fan: {}%", gpu.temperature, gpu.fan_speed);
+            println!("      Power: {}W / {}W", gpu.power_usage, gpu.power_limit);
+            println!("      GPU: {}%, Mem: {}%", gpu.gpu_utilization, gpu.memory_utilization);
+            println!("      VRAM: {} / {} MB",
+                gpu.memory_used / 1024 / 1024,
+                gpu.memory_total / 1024 / 1024);
+        }
+
+        if !gpu_metrics.processes.is_empty() {
+            println!("\nGPU Processes: {}", gpu_metrics.processes.len());
+            for proc in gpu_metrics.processes.iter().take(5) {
+                println!("  PID {} (GPU {}): {} - {} MB",
+                    proc.pid, proc.gpu_index, proc.name,
+                    proc.gpu_memory / 1024 / 1024);
+            }
+        }
+    } else {
+        println!("Failed to collect GPU metrics");
+    }
+}
+
 fn main() -> Result<()> {
     let cli = Cli::parse();
+
+    // Debug GPU detection
+    #[cfg(feature = "gpu")]
+    if cli.debug_gpu {
+        debug_gpu();
+        return Ok(());
+    }
 
     // Setup terminal
     enable_raw_mode().context("Failed to enable raw mode")?;

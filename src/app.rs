@@ -9,6 +9,7 @@ use ratatui::widgets::TableState;
 use sysinfo::{Components, Disks, Networks, Pid, Signal, System, Users};
 
 use crate::cli::Cli;
+#[cfg(feature = "docker")]
 use crate::metrics::docker::{
     collect_docker_metrics, collect_docker_stats, ContainerInfo, DockerHandle,
 };
@@ -17,6 +18,29 @@ use crate::types::{
     ActivePanel, GpuBackend, GpuMetrics, GpuProcessInfo, HistoryData, KillConfirmation,
     ProcessInfo, SortColumn, SystemMetrics,
 };
+
+// Stub types when docker feature is disabled
+#[cfg(not(feature = "docker"))]
+pub struct DockerHandle;
+#[cfg(not(feature = "docker"))]
+impl DockerHandle {
+    pub fn new() -> Self { Self }
+}
+#[cfg(not(feature = "docker"))]
+#[derive(Clone, Default)]
+pub struct ContainerInfo {
+    pub id: String,
+    pub name: String,
+    pub image: String,
+    pub status: String,
+    pub state: String,
+    pub ports: String,
+    pub cpu_pct: f64,
+    pub mem_usage: u64,
+    pub mem_limit: u64,
+    pub net_rx: u64,
+    pub net_tx: u64,
+}
 
 /// HTTP method for API testing.
 #[derive(PartialEq, Clone, Copy)]
@@ -276,6 +300,7 @@ impl App {
             self.gpu_metrics = collect_gpu_metrics(&self.gpu_handle, &self.system, &self.users);
         }
 
+        #[cfg(feature = "docker")]
         if self.docker_enabled {
             self.docker_containers = collect_docker_metrics(&self.docker_handle);
             collect_docker_stats(
@@ -578,12 +603,14 @@ impl App {
         }
 
         // Handle HTTP request dialog
+        #[cfg(feature = "docker")]
         if self.http_request.visible {
             self.handle_http_key(code, modifiers);
             return;
         }
 
         // Handle logs viewer
+        #[cfg(feature = "docker")]
         if self.container_logs.is_some() {
             match code {
                 KeyCode::Esc | KeyCode::Char('q') => self.container_logs = None,
@@ -672,6 +699,7 @@ impl App {
             KeyCode::Char('g') => self.show_graphs = !self.show_graphs,
             KeyCode::Char('c') => self.compact_mode = !self.compact_mode,
             KeyCode::Char('d') => self.show_docker = !self.show_docker,
+            #[cfg(feature = "docker")]
             KeyCode::Char('l') => {
                 // View logs for selected docker container
                 if self.active_tab == ViewTab::Docker && !self.docker_containers.is_empty() {
@@ -712,6 +740,7 @@ impl App {
             KeyCode::Delete => {
                 self.request_kill(Signal::Term);
             }
+            #[cfg(feature = "docker")]
             KeyCode::Enter => {
                 // On Docker tab, open HTTP request dialog for selected container
                 if self.active_tab == ViewTab::Docker && !self.docker_containers.is_empty() {
@@ -742,6 +771,7 @@ impl App {
     }
 
     /// Handle keys in the HTTP request dialog.
+    #[cfg(feature = "docker")]
     fn handle_http_key(&mut self, code: KeyCode, modifiers: KeyModifiers) {
         // Ctrl+S sends request from anywhere in the dialog
         if modifiers.contains(KeyModifiers::CONTROL) && code == KeyCode::Char('s') {
@@ -799,6 +829,7 @@ impl App {
         }
     }
 
+    #[cfg(feature = "docker")]
     fn get_http_field_mut(&mut self) -> &mut String {
         match self.http_request.active_field {
             1 => &mut self.http_request.path,
@@ -808,6 +839,7 @@ impl App {
         }
     }
 
+    #[cfg(feature = "docker")]
     fn fetch_container_logs(&mut self, id: &str, name: &str) {
         // Use docker CLI to get logs (simpler than bollard streaming)
         let output = std::process::Command::new("docker")
@@ -834,6 +866,7 @@ impl App {
         });
     }
 
+    #[cfg(feature = "docker")]
     fn send_http_request(&mut self) {
         let url = format!(
             "http://localhost:{}{}",

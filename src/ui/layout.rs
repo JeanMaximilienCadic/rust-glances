@@ -7,11 +7,15 @@ use ratatui::{
 
 use super::alerts::render_alerts_panel;
 use super::dialogs::{render_help, render_kill_confirm, render_status};
+#[cfg(feature = "docker")]
 use super::docker::render_docker_panel;
 use super::footer::render_footer;
+#[cfg(feature = "gpu")]
 use super::gpu::render_gpu_panel;
 use super::header::render_header;
+#[cfg(feature = "docker")]
 use super::http_dialog::render_http_dialog;
+#[cfg(feature = "docker")]
 use super::logs_dialog::render_logs_dialog;
 use super::processes::render_cpu_processes;
 use super::system::{
@@ -20,7 +24,9 @@ use super::system::{
 };
 use super::tabs::render_tabs;
 use super::temps::render_temps_panel;
-use super::graphs::{render_cpu_mem_graph, render_gpu_graphs, render_sparkline_row};
+use super::graphs::{render_cpu_mem_graph, render_sparkline_row};
+#[cfg(feature = "gpu")]
+use super::graphs::render_gpu_graphs;
 use crate::app::{App, ViewTab};
 
 /// Main UI rendering function.
@@ -78,14 +84,20 @@ pub fn render_ui(frame: &mut Frame, app: &mut App) {
     }
 
     // Render overlays on top
-    let full = frame.area();
-    render_http_dialog(frame, full, app);
-    render_logs_dialog(frame, full, app);
+    #[cfg(feature = "docker")]
+    {
+        let full = frame.area();
+        render_http_dialog(frame, full, app);
+        render_logs_dialog(frame, full, app);
+    }
 }
 
 /// Overview: the main dashboard — CPU/MEM/LOAD left, Network/Disk/Temps right, processes bottom.
 fn render_overview(frame: &mut Frame, area: Rect, app: &mut App) {
+    #[cfg(feature = "docker")]
     let has_docker = app.show_docker && !app.docker_containers.is_empty();
+    #[cfg(not(feature = "docker"))]
+    let has_docker = false;
     let has_alerts = !app.alerts.is_empty();
 
     // Split: top info panels | graphs | alerts | processes | (docker)
@@ -171,11 +183,16 @@ fn render_overview(frame: &mut Frame, area: Rect, app: &mut App) {
             .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
             .split(v_chunks[ci]);
         render_cpu_mem_graph(frame, graph_cols[0], app);
-        if app.gpu_enabled && app.gpu_metrics.is_some() {
-            render_gpu_graphs(frame, graph_cols[1], app);
-        } else {
-            render_network_graph(frame, graph_cols[1], app);
+        #[cfg(feature = "gpu")]
+        {
+            if app.gpu_enabled && app.gpu_metrics.is_some() {
+                render_gpu_graphs(frame, graph_cols[1], app);
+            } else {
+                render_network_graph(frame, graph_cols[1], app);
+            }
         }
+        #[cfg(not(feature = "gpu"))]
+        render_network_graph(frame, graph_cols[1], app);
         ci += 1;
     }
 
@@ -190,6 +207,7 @@ fn render_overview(frame: &mut Frame, area: Rect, app: &mut App) {
     ci += 1;
 
     // Docker
+    #[cfg(feature = "docker")]
     if has_docker {
         render_docker_panel(frame, v_chunks[ci], app);
         ci += 1;
@@ -219,13 +237,47 @@ fn render_disks_view(frame: &mut Frame, area: Rect, app: &mut App) {
 }
 
 /// Full-screen docker view.
+#[allow(unused_variables)]
 fn render_docker_view(frame: &mut Frame, area: Rect, app: &mut App) {
+    #[cfg(feature = "docker")]
     render_docker_panel(frame, area, app);
+    #[cfg(not(feature = "docker"))]
+    render_feature_disabled(frame, area, "Docker", "docker");
 }
 
 /// Full-screen GPU view.
+#[allow(unused_variables)]
 fn render_gpu_view(frame: &mut Frame, area: Rect, app: &mut App) {
+    #[cfg(feature = "gpu")]
     render_gpu_panel(frame, area, app);
+    #[cfg(not(feature = "gpu"))]
+    render_feature_disabled(frame, area, "GPU", "gpu");
+}
+
+/// Render a "feature disabled" placeholder.
+#[allow(dead_code)]
+fn render_feature_disabled(frame: &mut Frame, area: Rect, name: &str, feature: &str) {
+    use ratatui::style::{Color, Style};
+    use ratatui::text::Line;
+    use ratatui::widgets::{Block, Borders, Paragraph, block::BorderType};
+
+    let text = vec![
+        Line::from(""),
+        Line::from(format!("{} monitoring is disabled.", name)),
+        Line::from(""),
+        Line::from(format!("Rebuild with: cargo install glances --features {}", feature)),
+    ];
+    let block = Block::default()
+        .borders(Borders::ALL)
+        .border_type(BorderType::Rounded)
+        .title(format!(" {} (disabled) ", name))
+        .border_style(Style::default().fg(Color::DarkGray));
+    frame.render_widget(
+        Paragraph::new(text)
+            .style(Style::default().fg(Color::DarkGray))
+            .block(block),
+        area,
+    );
 }
 
 /// Compact network list for overview sidebar.

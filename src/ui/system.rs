@@ -238,46 +238,50 @@ pub fn render_network_full(frame: &mut Frame, area: Rect, app: &App) {
     frame.render_widget(table, area);
 }
 
-/// Full-screen disk view with all filesystems.
+/// Full-screen disk view with all filesystems (df -h style).
 pub fn render_disk_full(frame: &mut Frame, area: Rect, app: &App) {
-    let header = Row::new(vec!["Mount", "FS", "Used / Total", "Usage", "%", "I/O Read", "I/O Write"])
+    let header = Row::new(vec!["Filesystem", "Size", "Used", "Avail", "Use%", "Mounted on"])
         .style(Style::default().fg(Color::Rgb(200, 200, 255)).add_modifier(Modifier::BOLD));
 
     let rows: Vec<Row> = app.system_metrics.disks.iter().filter(|d| d.total > 0).map(|disk| {
         let pct = (disk.used as f64 / disk.total as f64) * 100.0;
-        let bar_w = 12;
-        let filled = ((pct / 100.0) * bar_w as f64).round() as usize;
-        let empty = bar_w - filled;
-        let bar = format!("{}{}",  "▓".repeat(filled), "░".repeat(empty));
+        let avail = disk.total.saturating_sub(disk.used);
+
+        // Color based on usage
+        let pct_color = if pct >= 90.0 {
+            Color::Rgb(255, 80, 80)
+        } else if pct >= 75.0 {
+            Color::Rgb(255, 180, 50)
+        } else {
+            Color::Rgb(80, 220, 120)
+        };
 
         Row::new(vec![
-            Cell::from(disk.mount_point.clone()).style(Style::default().fg(Color::Cyan)),
-            Cell::from(disk.fs_type.clone()),
-            Cell::from(format!("{} / {}", format_size(disk.used, BINARY), format_size(disk.total, BINARY))),
-            Cell::from(bar).style(Style::default().fg(gradient_color(pct))),
-            Cell::from(format!("{:.1}%", pct)),
-            Cell::from(format!("{}/s", format_size(disk.read_rate as u64, BINARY))),
-            Cell::from(format!("{}/s", format_size(disk.write_rate as u64, BINARY))),
+            Cell::from(disk.name.clone()).style(Style::default().fg(Color::Cyan)),
+            Cell::from(format_size(disk.total, BINARY)),
+            Cell::from(format_size(disk.used, BINARY)),
+            Cell::from(format_size(avail, BINARY)),
+            Cell::from(format!("{:>3.0}%", pct)).style(Style::default().fg(pct_color)),
+            Cell::from(disk.mount_point.clone()).style(Style::default().fg(Color::White)),
         ])
     }).collect();
 
     let table = Table::new(
         rows,
         [
-            Constraint::Length(20),
-            Constraint::Length(8),
-            Constraint::Length(22),
-            Constraint::Length(14),
-            Constraint::Length(7),
-            Constraint::Length(12),
-            Constraint::Min(12),
+            Constraint::Min(25),
+            Constraint::Length(10),
+            Constraint::Length(10),
+            Constraint::Length(10),
+            Constraint::Length(6),
+            Constraint::Min(15),
         ],
     )
     .block(
         Block::default()
             .borders(Borders::ALL)
             .border_type(BorderType::Rounded)
-            .title(" Filesystems ")
+            .title(" Filesystems (df -h) ")
             .border_style(Style::default().fg(Color::Rgb(80, 80, 120))),
     )
     .header(header);

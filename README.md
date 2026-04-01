@@ -9,7 +9,45 @@ A modern, feature-rich TUI system monitor written in Rust. Inspired by [glances]
 ## Install
 
 ```bash
+# Full installation (GPU + Docker support)
 cargo install glances
+
+# Minimal installation (no GPU/Docker dependencies)
+cargo install glances --no-default-features --features minimal
+
+# GPU support only
+cargo install glances --no-default-features --features gpu
+
+# Docker support only
+cargo install glances --no-default-features --features docker
+```
+
+### Feature Flags
+
+| Feature | Description | Dependencies |
+|---------|-------------|--------------|
+| `default` | Full functionality (GPU + Docker) | nvml-wrapper, bollard, reqwest |
+| `gpu` | NVIDIA (Linux/Windows) and Metal (macOS) GPU monitoring | nvml-wrapper (Linux/Win), metal (macOS) |
+| `docker` | Docker container monitoring and API testing | bollard, reqwest |
+| `minimal` | CPU, memory, disk, network only | None (lightweight) |
+
+### System Dependencies
+
+**For GPU monitoring on Linux**, ensure NVIDIA drivers are installed:
+```bash
+# The NVML library is required
+ls /usr/lib/x86_64-linux-gnu/libnvidia-ml.so.1
+```
+
+**For building from source**:
+```bash
+# Ubuntu/Debian
+sudo apt install pkg-config libssl-dev
+
+# Fedora
+sudo dnf install pkg-config openssl-devel
+
+# macOS (for Metal support, no extra deps needed)
 ```
 
 ## Features
@@ -17,7 +55,7 @@ cargo install glances
 ### System Monitoring
 - **CPU** — global usage, per-core bars, user/sys/idle breakdown, load averages (1m/5m/15m)
 - **Memory** — RAM, swap with total/used/free, gradient bars
-- **Disk** — all filesystems, usage, I/O read/write rates
+- **Disk** — df-h style display: filesystem, size, used, avail, use%, mounted on
 - **Network** — all interfaces (including lo, utun, awdl), rx/tx rates
 - **Battery** — charge level and state in header
 - **Sensors** — temperature readings with color-coded thresholds
@@ -59,7 +97,7 @@ glances
 # Custom refresh rate (ms)
 glances -r 500
 
-# Disable GPU/Docker monitoring
+# Disable GPU/Docker monitoring at runtime
 glances --no-gpu --no-docker
 
 # Start with per-core CPU bars
@@ -79,7 +117,7 @@ glances -a
 | `1` | Overview — dashboard with all panels |
 | `2` | Processes — full-screen process table |
 | `3` | Network — all interfaces + throughput graph |
-| `4` | Disks — all filesystems with I/O rates |
+| `4` | Disks — all filesystems (df -h style) |
 | `5` | Docker — containers with logs and API testing |
 | `6` | GPU — GPU cards, graphs, GPU processes |
 
@@ -131,7 +169,7 @@ src/
     ├── tabs.rs          — tab bar
     ├── header.rs        — top bar with hostname, uptime, battery
     ├── footer.rs        — keybinding hints
-    ├── system.rs        — CPU/MEM/SWAP/LOAD inline bars
+    ├── system.rs        — CPU/MEM/SWAP/LOAD inline bars, df-h disk view
     ├── gpu.rs           — GPU cards
     ├── graphs.rs        — braille sparkline charts
     ├── processes.rs     — process tables
@@ -146,7 +184,7 @@ src/
 ## Requirements
 
 - Rust 1.70+
-- **Linux/Windows**: NVIDIA drivers for GPU monitoring
+- **Linux/Windows**: NVIDIA drivers for GPU monitoring (optional)
 - **macOS**: Metal-compatible GPU (Apple Silicon or AMD)
 - Docker (optional, for container monitoring)
 
