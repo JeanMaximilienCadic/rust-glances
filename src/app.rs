@@ -579,7 +579,7 @@ impl App {
 
         // Handle HTTP request dialog
         if self.http_request.visible {
-            self.handle_http_key(code);
+            self.handle_http_key(code, modifiers);
             return;
         }
 
@@ -742,7 +742,13 @@ impl App {
     }
 
     /// Handle keys in the HTTP request dialog.
-    fn handle_http_key(&mut self, code: KeyCode) {
+    fn handle_http_key(&mut self, code: KeyCode, modifiers: KeyModifiers) {
+        // Ctrl+S sends request from anywhere in the dialog
+        if modifiers.contains(KeyModifiers::CONTROL) && code == KeyCode::Char('s') {
+            self.send_http_request();
+            return;
+        }
+
         if self.http_request.editing {
             // Text input mode
             match code {
@@ -780,16 +786,14 @@ impl App {
             }
             KeyCode::Enter => {
                 if self.http_request.active_field == 0 {
-                    // Toggle method
                     self.http_request.method = self.http_request.method.next();
                 } else {
-                    // Start editing the active field
                     self.http_request.editing = true;
                 }
             }
-            KeyCode::Char('s') | KeyCode::F(9) => {
-                // Send the request
-                self.send_http_request();
+            KeyCode::Char('f') => {
+                // Format/prettify the body JSON
+                self.http_request.body = prettify_json(&self.http_request.body);
             }
             _ => {}
         }
@@ -869,11 +873,13 @@ impl App {
             Ok(resp) => {
                 self.http_request.response_status = Some(resp.status().as_u16());
                 let body = resp.text().unwrap_or_else(|_| "<binary>".into());
+                // Pretty-print JSON responses
+                let pretty = prettify_json(&body);
                 // Truncate long responses
-                if body.len() > 2000 {
-                    self.http_request.response = Some(format!("{}...\n[truncated]", &body[..2000]));
+                if pretty.len() > 4000 {
+                    self.http_request.response = Some(format!("{}...\n[truncated]", &pretty[..4000]));
                 } else {
-                    self.http_request.response = Some(body);
+                    self.http_request.response = Some(pretty);
                 }
             }
             Err(e) => {
@@ -1082,5 +1088,13 @@ impl App {
         };
 
         state.select(Some(pos.min(len - 1)));
+    }
+}
+
+/// Pretty-print a JSON string. Returns the original string if not valid JSON.
+fn prettify_json(s: &str) -> String {
+    match serde_json::from_str::<serde_json::Value>(s.trim()) {
+        Ok(val) => serde_json::to_string_pretty(&val).unwrap_or_else(|_| s.to_string()),
+        Err(_) => s.to_string(),
     }
 }

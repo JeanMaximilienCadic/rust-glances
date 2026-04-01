@@ -163,8 +163,10 @@ pub fn render_http_dialog(frame: &mut Frame, area: Rect, app: &App) {
         Span::styled(":Edit ", Style::default().fg(Color::DarkGray)),
         Span::styled("m", Style::default().fg(Color::Rgb(130, 170, 255))),
         Span::styled(":Method ", Style::default().fg(Color::DarkGray)),
-        Span::styled("s", Style::default().fg(Color::Rgb(80, 220, 120))),
+        Span::styled("Ctrl+S", Style::default().fg(Color::Rgb(80, 220, 120))),
         Span::styled(":Send ", Style::default().fg(Color::DarkGray)),
+        Span::styled("f", Style::default().fg(Color::Rgb(130, 170, 255))),
+        Span::styled(":Format ", Style::default().fg(Color::DarkGray)),
         Span::styled("Esc", Style::default().fg(Color::Rgb(255, 80, 80))),
         Span::styled(":Close", Style::default().fg(Color::DarkGray)),
     ]);
