@@ -1,159 +1,161 @@
-# nvglances
+# glances
 
-A feature-complete terminal UI that combines the best of [glances](https://github.com/nicolargo/glances) and [nvitop](https://github.com/XuehaiPan/nvitop) - system and GPU monitoring in one tool.
+A modern, feature-rich TUI system monitor written in Rust. Inspired by [glances](https://github.com/nicolargo/glances) with GPU support, Docker integration, and a built-in API tester.
 
-**Supports NVIDIA GPUs (via CUDA/NVML) and Apple Silicon GPUs (via Metal).**
-
+[![Crates.io](https://img.shields.io/crates/v/glances.svg)](https://crates.io/crates/glances)
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
 ![Rust](https://img.shields.io/badge/rust-1.70%2B-orange.svg)
+
+## Install
+
+```bash
+cargo install glances
+```
 
 ## Features
 
 ### System Monitoring
-- **CPU**: Global usage, per-core stats, frequency, load averages
-- **Memory**: RAM and swap usage with visual gauges
-- **Disk**: Mount points, filesystem types, usage statistics
-- **Network**: Interface traffic rates and totals
-- **Processes**: Sortable process table with CPU/memory usage
+- **CPU** — global usage, per-core bars, user/sys/idle breakdown, load averages (1m/5m/15m)
+- **Memory** — RAM, swap with total/used/free, gradient bars
+- **Disk** — all filesystems, usage, I/O read/write rates
+- **Network** — all interfaces (including lo, utun, awdl), rx/tx rates
+- **Battery** — charge level and state in header
+- **Sensors** — temperature readings with color-coded thresholds
+- **Processes** — sortable by CPU, memory, disk I/O, with kill support
 
 ### GPU Monitoring
 
 #### NVIDIA GPUs (Linux/Windows via NVML)
-- **Multi-GPU support**: Monitor all NVIDIA GPUs simultaneously
-- **GPU metrics**: Utilization, temperature, fan speed, power draw
-- **Memory**: VRAM usage per GPU
-- **Clocks**: SM and memory clock frequencies
-- **P-States**: Performance state display (P0-P15)
-- **Encoder/Decoder**: Video engine utilization
-- **PCIe throughput**: Data transfer rates
-- **GPU processes**: Track processes using GPU resources
+- Multi-GPU utilization, temperature, fan, power, clocks, P-states
+- VRAM usage, encoder/decoder, PCIe throughput
+- Per-process GPU memory tracking
 
 #### Apple Silicon GPUs (macOS via Metal)
-- **Multi-GPU support**: Monitor all Metal-compatible GPUs
-- **Memory**: GPU memory usage and allocation
-- **Metal API version**: Displays Metal 3, Metal 2, etc.
+- GPU memory usage and allocation
+- Metal API version detection
 
-### User Interface
-- **Adaptive layout**: Automatically adjusts to terminal size
-- **Compact mode**: Condensed view for smaller terminals
-- **History graphs**: CPU and GPU utilization over time
-- **Color-coded**: Visual indicators for resource usage levels
-- **Mouse support**: Click to select, scroll to navigate
-- **Process management**: Kill processes with confirmation dialog
+### Docker Integration
+- Container list with CPU%, MEM/MAX, ports, uptime
+- Block I/O and network I/O per container
+- **Container logs viewer** — press `l` on Docker tab
+- **Built-in HTTP API tester** — press `Enter` on a container to open a Postman-like overlay (GET/POST/PUT/DELETE with headers, JSON body, response viewer)
 
-## Installation
+### Alert System
+- Auto-detects high CPU (>85%), memory (>75%), load (>1.0/core)
+- Shows ongoing/resolved alerts with timestamps
 
-### From crates.io
-```bash
-cargo install nvglances
-```
-
-### From source
-
-```bash
-# Clone the repository
-git clone https://github.com/EricLBuehler/nvglances.git
-cd nvglances
-
-# Build release binary
-cargo build --release
-
-# Install (optional)
-cargo install --path .
-```
-
-### Requirements
-
-- Rust 1.70 or later
-- **Linux/Windows**: NVIDIA drivers for GPU monitoring
-- **macOS**: Metal-compatible GPU (Apple Silicon or AMD)
+### Modern TUI
+- Rounded borders, RGB color gradients, smooth braille sparkline graphs
+- Tab-based views with number keys
+- Mouse support (click to select, scroll to navigate)
+- Vim-style keybindings (j/k, PgUp/PgDn)
 
 ## Usage
 
 ```bash
-# Run nvglances
-nvglances
+# Run with defaults
+glances
 
-# Or run directly from target
-./target/release/nvglances
+# Custom refresh rate (ms)
+glances -r 500
+
+# Disable GPU/Docker monitoring
+glances --no-gpu --no-docker
+
+# Start with per-core CPU bars
+glances --per-core
+
+# Start in compact mode
+glances -c
+
+# Show all processes including idle
+glances -a
 ```
 
-### Keyboard Shortcuts
+## Views
+
+| Key | View |
+|-----|------|
+| `1` | Overview — dashboard with all panels |
+| `2` | Processes — full-screen process table |
+| `3` | Network — all interfaces + throughput graph |
+| `4` | Disks — all filesystems with I/O rates |
+| `5` | Docker — containers with logs and API testing |
+| `6` | GPU — GPU cards, graphs, GPU processes |
+
+## Keyboard Shortcuts
 
 | Key | Action |
 |-----|--------|
-| `?` / `F1` | Show help |
-| `q` / `Esc` | Quit |
-| `Tab` | Switch between CPU and GPU process panels |
-| `j` / `↓` | Move selection down |
-| `k` / `↑` | Move selection up |
-| `PgDn` / `PgUp` | Move selection by page |
-| `Home` / `End` | Jump to first/last item |
-| `1-6` | Sort by column (PID, Name, User, CPU%, MEM%, GPU MEM) |
-| `r` | Reverse sort order |
+| `1`-`6` | Switch view |
+| `?` | Help |
+| `q` / `Esc` | Quit (or close overlay) |
+| `j`/`k` / `Up`/`Down` | Navigate |
+| `PgUp` / `PgDn` | Page navigation |
+| `F2`-`F8` | Sort by column |
+| `r` | Reverse sort |
 | `a` | Toggle show all processes |
-| `g` | Toggle history graphs |
-| `c` | Toggle compact mode |
+| `g` | Toggle graphs |
+| `p` | Toggle per-core CPU bars |
+| `d` | Toggle Docker panel |
+| `t` | Toggle temperature sensors |
 | `+` / `-` | Adjust refresh rate |
+| `Del` | Kill selected process (SIGTERM) |
+| `Ctrl+K` | Force kill (SIGKILL) |
 
-### Process Control
+### Docker View
 
-| Key | Signal | Description |
-|-----|--------|-------------|
-| `Del` / `Ctrl+T` | SIGTERM | Graceful termination |
-| `Ctrl+K` | SIGKILL | Force kill |
-| `Ctrl+I` | SIGINT | Interrupt |
+| Key | Action |
+|-----|--------|
+| `Enter` | Open HTTP API tester for selected container |
+| `l` | View container logs |
+| `Tab` | Navigate fields in API tester |
+| `m` | Cycle HTTP method (GET/POST/PUT/DELETE) |
+| `s` | Send request |
 
-A confirmation dialog appears before killing any process.
+## Architecture
 
-### Mouse Support
-
-- **Click** on process tables to select rows
-- **Scroll** to navigate up/down in process lists
-
-## Configuration
-
-nvglances currently uses sensible defaults. Configuration file support may be added in future versions.
-
-## Contributing
-
-Contributions are welcome! Please feel free to submit issues and pull requests.
-
-### Development Setup
-
-```bash
-# Clone and enter directory
-git clone https://github.com/yourusername/nvglances.git
-cd nvglances
-
-# Build in debug mode (faster compilation)
-cargo build
-
-# Run with debug output
-RUST_BACKTRACE=1 cargo run
-
-# Run tests
-cargo test
-
-# Check formatting
-cargo fmt --check
-
-# Run linter
-cargo clippy
+```
+src/
+├── main.rs              — event loop, terminal setup
+├── app.rs               — app state, input handling, alerts
+├── cli.rs               — clap argument parser
+├── types.rs             — data structures
+├── utils.rs             — formatting helpers
+├── metrics/
+│   ├── system.rs        — CPU/mem/disk/net/battery/process collection
+│   ├── gpu.rs           — NVML + Metal GPU backends
+│   └── docker.rs        — bollard Docker stats
+└── ui/
+    ├── layout.rs        — main layout coordinator
+    ├── tabs.rs          — tab bar
+    ├── header.rs        — top bar with hostname, uptime, battery
+    ├── footer.rs        — keybinding hints
+    ├── system.rs        — CPU/MEM/SWAP/LOAD inline bars
+    ├── gpu.rs           — GPU cards
+    ├── graphs.rs        — braille sparkline charts
+    ├── processes.rs     — process tables
+    ├── docker.rs        — container table
+    ├── temps.rs         — sensor panel
+    ├── alerts.rs        — alert events panel
+    ├── http_dialog.rs   — Postman-like API tester overlay
+    ├── logs_dialog.rs   — container logs viewer overlay
+    └── dialogs.rs       — help, kill confirm, status
 ```
 
-### Code Style
+## Requirements
 
-- Follow standard Rust conventions
-- Use `cargo fmt` before committing
-- Add comments for complex logic
-- Keep functions focused and small
+- Rust 1.70+
+- **Linux/Windows**: NVIDIA drivers for GPU monitoring
+- **macOS**: Metal-compatible GPU (Apple Silicon or AMD)
+- Docker (optional, for container monitoring)
 
 ## License
 
-MIT License - see [LICENSE](LICENSE) for details.
+MIT — see [LICENSE](LICENSE) for details.
 
 ## Acknowledgments
 
-- Inspired by [glances](https://github.com/nicolargo/glances) and [nvitop](https://github.com/XuehaiPan/nvitop)
-- Built with [ratatui](https://github.com/ratatui-org/ratatui)
+- Originally forked from [nvglances](https://github.com/EricLBuehler/nvglances)
+- Inspired by [glances](https://github.com/nicolargo/glances)
+- Built with [ratatui](https://github.com/ratatui-org/ratatui), [sysinfo](https://github.com/GuillaumeGomez/sysinfo), [bollard](https://github.com/fussybeaver/bollard)
