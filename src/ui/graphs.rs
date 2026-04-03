@@ -13,7 +13,6 @@ use ratatui::{
 };
 
 use crate::app::App;
-use crate::types::GpuBackend;
 
 const BORDER_COLOR: Color = Color::Rgb(80, 80, 120);
 const AXIS_COLOR: Color = Color::Rgb(60, 60, 80);
@@ -112,8 +111,7 @@ pub fn render_gpu_graphs(frame: &mut Frame, area: Rect, app: &App) {
     let Some(ref gpu_metrics) = app.gpu_metrics else { return };
     if gpu_metrics.gpus.is_empty() { return }
 
-    let is_metal = gpu_metrics.backend == GpuBackend::Metal;
-    let history = if is_metal { &app.history.gpu_mem_history } else { &app.history.gpu_util_history };
+    let history = &app.history.gpu_util_history;
 
     let gpu_colors = [
         Color::Rgb(80, 220, 120),
