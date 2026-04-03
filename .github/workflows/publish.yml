@@ -33,7 +33,7 @@ jobs:
 
       - name: Setup Rust
         if: steps.version.outputs.changed == 'true'
-        uses: dtolnay/rust-action@stable
+        uses: dtolnay/rust-toolchain@stable
 
       - name: Build
         if: steps.version.outputs.changed == 'true'
