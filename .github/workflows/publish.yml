@@ -1,0 +1,54 @@
+name: Publish to crates.io
+
+on:
+  push:
+    branches: [main]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Check if version changed
+        id: version
+        run: |
+          CURRENT_VERSION=$(grep '^version' Cargo.toml | head -1 | sed 's/.*"\(.*\)"/\1/')
+          git show HEAD~1:Cargo.toml > /tmp/old_cargo.toml 2>/dev/null || echo 'version = "0.0.0"' > /tmp/old_cargo.toml
+          OLD_VERSION=$(grep '^version' /tmp/old_cargo.toml | head -1 | sed 's/.*"\(.*\)"/\1/')
+          echo "current=$CURRENT_VERSION" >> $GITHUB_OUTPUT
+          echo "old=$OLD_VERSION" >> $GITHUB_OUTPUT
+          if [ "$CURRENT_VERSION" != "$OLD_VERSION" ]; then
+            echo "changed=true" >> $GITHUB_OUTPUT
+            echo "Version changed: $OLD_VERSION -> $CURRENT_VERSION"
+          else
+            echo "changed=false" >> $GITHUB_OUTPUT
+            echo "Version unchanged: $CURRENT_VERSION"
+          fi
+
+      - name: Setup Rust
+        if: steps.version.outputs.changed == 'true'
+        uses: dtolnay/rust-action@stable
+
+      - name: Build
+        if: steps.version.outputs.changed == 'true'
+        run: cargo build --release
+
+      - name: Run tests
+        if: steps.version.outputs.changed == 'true'
+        run: cargo test
+
+      - name: Publish to crates.io
+        if: steps.version.outputs.changed == 'true'
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CRATES_TOKEN }}
+        run: cargo publish --allow-dirty
+
+      - name: Skip publish
+        if: steps.version.outputs.changed == 'false'
+        run: echo "Skipping publish - version unchanged"
