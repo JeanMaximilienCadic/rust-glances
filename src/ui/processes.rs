@@ -2,18 +2,18 @@
 
 use humansize::{format_size, BINARY};
 use ratatui::{
-    layout::{Alignment, Margin, Rect},
+    layout::{Margin, Rect},
     style::{Color, Modifier, Style},
-    text::{Line, Span},
+    text::Line,
     widgets::{
-        Block, Borders, Cell, Paragraph, Row, Scrollbar, ScrollbarOrientation, ScrollbarState,
+        Block, Borders, Cell, Row, Scrollbar, ScrollbarOrientation, ScrollbarState,
         Table, block::BorderType,
     },
     Frame,
 };
 
 use crate::app::App;
-use crate::types::{ActivePanel, GpuBackend, SortColumn};
+use crate::types::{ActivePanel, SortColumn};
 use crate::utils::{truncate_string, usage_color};
 
 /// Render the CPU process table.
@@ -153,43 +153,6 @@ pub fn render_gpu_processes(frame: &mut Frame, area: Rect, app: &mut App) {
     let procs = app.get_sorted_gpu_processes();
     let is_active = app.active_panel == ActivePanel::GpuProcesses;
 
-    // Check if we're on Metal backend (no GPU process tracking available)
-    let is_metal = app
-        .gpu_metrics
-        .as_ref()
-        .map(|m| m.backend == GpuBackend::Metal)
-        .unwrap_or(false);
-
-    if is_metal {
-        let border_style = if is_active {
-            Style::default().fg(Color::Cyan)
-        } else {
-            Style::default().fg(Color::DarkGray)
-        };
-
-        let message = Paragraph::new(vec![
-            Line::from(""),
-            Line::from(Span::styled(
-                "GPU process tracking not available on Metal",
-                Style::default().fg(Color::DarkGray),
-            )),
-            Line::from(""),
-            Line::from(Span::styled(
-                "Use the CPU Processes panel to view all processes",
-                Style::default().fg(Color::DarkGray),
-            )),
-        ])
-        .alignment(Alignment::Center)
-        .block(
-            Block::default()
-                .borders(Borders::ALL)
-                .title("GPU Processes (Metal)")
-                .border_style(border_style),
-        );
-
-        frame.render_widget(message, area);
-        return;
-    }
 
     let sort_indicator = |col: SortColumn| -> &str {
         if app.gpu_sort == col {

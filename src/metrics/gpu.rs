@@ -5,7 +5,6 @@ use sysinfo::{Pid, System, Users};
 
 use crate::types::{GpuBackend, GpuInfo, GpuMetrics};
 
-#[cfg(not(target_os = "macos"))]
 use crate::types::GpuProcessInfo;
 
 // ============================================================================
@@ -250,18 +249,97 @@ mod metal_backend {
         ("N/A".to_string(), 0, 0)
     }
 
-    /// Get GPU utilization from powermetrics (requires sudo, so we estimate instead).
-    fn estimate_gpu_utilization() -> u32 {
-        // On macOS, getting real GPU utilization requires elevated privileges.
-        // We return 0 as a placeholder - the memory usage is more reliable.
-        0
+    /// Parse a numeric value from an IOKit PerformanceStatistics key like `"Key"=12345`.
+    fn parse_iokit_stat(text: &str, key: &str) -> Option<u64> {
+        let pattern = format!("\"{}\"=", key);
+        text.find(&pattern).and_then(|idx| {
+            let after = &text[idx + pattern.len()..];
+            let num_str: String = after.chars().take_while(|c| c.is_ascii_digit()).collect();
+            num_str.parse().ok()
+        })
+    }
+
+    /// Get GPU stats from IOKit PerformanceStatistics (no sudo required).
+    /// Returns (device_utilization, in_use_memory, alloc_memory).
+    fn get_gpu_stats_iokit() -> (u32, u64, u64) {
+        let output = Command::new("ioreg")
+            .args(["-r", "-d", "1", "-c", "IOAccelerator"])
+            .output();
+
+        if let Ok(output) = output {
+            if let Ok(text) = String::from_utf8(output.stdout) {
+                // Find the PerformanceStatistics block
+                if let Some(ps_idx) = text.find("\"PerformanceStatistics\"") {
+                    let ps_block = &text[ps_idx..];
+                    // Extract up to the closing brace
+                    if let Some(end) = ps_block.find('}') {
+                        let block = &ps_block[..=end];
+                        let util = parse_iokit_stat(block, "Device Utilization %")
+                            .unwrap_or(0) as u32;
+                        let in_use = parse_iokit_stat(block, "In use system memory")
+                            .unwrap_or(0);
+                        let alloc = parse_iokit_stat(block, "Alloc system memory")
+                            .unwrap_or(0);
+                        return (util.min(100), in_use, alloc);
+                    }
+                }
+            }
+        }
+        (0, 0, 0)
+    }
+
+    /// Get GPU-using processes from IOKit IOUserClientCreator entries.
+    fn get_gpu_processes_iokit(system: &System, users: &Users) -> Vec<GpuProcessInfo> {
+        let output = Command::new("ioreg")
+            .args(["-r", "-l", "-c", "IOAccelerator"])
+            .output();
+
+        let mut seen_pids = std::collections::HashSet::new();
+        let mut processes = Vec::new();
+
+        if let Ok(output) = output {
+            if let Ok(text) = String::from_utf8(output.stdout) {
+                for line in text.lines() {
+                    // Parse lines like: "IOUserClientCreator" = "pid 1234, ProcessName"
+                    if let Some(idx) = line.find("\"IOUserClientCreator\"") {
+                        if let Some(pid_idx) = line[idx..].find("pid ") {
+                            let after_pid = &line[idx + pid_idx + 4..];
+                            let pid_str: String =
+                                after_pid.chars().take_while(|c| c.is_ascii_digit()).collect();
+                            if let Ok(pid) = pid_str.parse::<u32>() {
+                                if !seen_pids.insert(pid) {
+                                    continue;
+                                }
+                                // Skip system processes (WindowServer, loginwindow, etc.)
+                                let (name, user, command) =
+                                    get_process_info(system, users, pid);
+                                if name == "?" {
+                                    continue;
+                                }
+                                processes.push(GpuProcessInfo {
+                                    pid,
+                                    name,
+                                    user,
+                                    gpu_index: 0,
+                                    gpu_memory: 0, // Per-process GPU memory not available
+                                    sm_utilization: None,
+                                    command,
+                                    process_type: "G".into(),
+                                });
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        processes
     }
 
     /// Collect GPU metrics from Metal.
     pub fn collect_gpu_metrics(
         handle: &GpuHandle,
-        _system: &System,
-        _users: &Users,
+        system: &System,
+        users: &Users,
     ) -> Option<GpuMetrics> {
         if handle.devices.is_empty() {
             return None;
@@ -270,12 +348,15 @@ mod metal_backend {
         let mut gpus = Vec::new();
         let (driver_version, _, _) = get_macos_gpu_info();
 
+        // Get system-wide GPU stats from IOKit (not per-process Metal API)
+        let (iokit_util, _iokit_mem_inuse, iokit_mem_alloc) = get_gpu_stats_iokit();
+
         for (i, device) in handle.devices.iter().enumerate() {
             let name = device.name().to_string();
 
-            // Metal provides recommended and current working set sizes
+            // Use Metal for total capacity, IOKit "Alloc system memory" for stable usage
             let memory_total = device.recommended_max_working_set_size();
-            let memory_used = device.current_allocated_size();
+            let memory_used = iokit_mem_alloc;
 
             // Calculate memory utilization percentage
             let memory_utilization = if memory_total > 0 {
@@ -284,8 +365,7 @@ mod metal_backend {
                 0
             };
 
-            // Metal doesn't provide these metrics directly
-            let gpu_utilization = estimate_gpu_utilization();
+            let gpu_utilization = iokit_util;
 
             gpus.push(GpuInfo {
                 index: i as u32,
@@ -326,9 +406,8 @@ mod metal_backend {
             "Metal".to_string()
         };
 
-        // Note: Metal doesn't provide per-process GPU memory tracking
-        // Process tracking would require IOKit or elevated privileges
-        let processes = Vec::new();
+        // Collect GPU processes from IOKit AGXDeviceUserClient entries
+        let processes = get_gpu_processes_iokit(system, users);
 
         Some(GpuMetrics {
             gpus,

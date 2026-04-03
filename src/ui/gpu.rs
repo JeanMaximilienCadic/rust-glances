@@ -182,7 +182,7 @@ pub fn render_gpu_card(
     }
 }
 
-/// Render GPU card for Metal backend (limited metrics).
+/// Render GPU card for Metal backend.
 fn render_gpu_card_metal(
     frame: &mut Frame,
     area: Rect,
@@ -191,10 +191,11 @@ fn render_gpu_card_metal(
     mem_pct: f64,
 ) {
     let card_height = area.height;
-    let mem_bar = create_bar(mem_pct, 20);
+    let gpu_pct = gpu.gpu_utilization as f64;
 
     if compact || card_height <= 1 {
-        let mem_bar_small = create_bar(mem_pct, 15);
+        let gpu_bar = create_bar(gpu_pct, 10);
+        let mem_bar_small = create_bar(mem_pct, 10);
         let text = Line::from(vec![
             Span::styled(
                 format!("GPU{} ", gpu.index),
@@ -202,6 +203,8 @@ fn render_gpu_card_metal(
             ),
             Span::styled(&gpu.name, Style::default().fg(Color::Green)),
             Span::raw("  "),
+            Span::styled(gpu_bar, Style::default().fg(usage_color(gpu_pct))),
+            Span::raw(format!(" {:3}%  ", gpu.gpu_utilization)),
             Span::styled("MEM ", Style::default().fg(Color::Magenta)),
             Span::styled(mem_bar_small, Style::default().fg(usage_color(mem_pct))),
             Span::raw(format!(" {:3}%", mem_pct as u32)),
@@ -209,17 +212,26 @@ fn render_gpu_card_metal(
         frame.render_widget(Paragraph::new(text), area);
     } else {
         let title = format!("GPU {} - {} [Metal]", gpu.index, gpu.name);
+        let gpu_bar = create_bar(gpu_pct, 20);
+        let mem_bar = create_bar(mem_pct, 20);
 
-        let lines = vec![Line::from(vec![
-            Span::styled("MEM  ", Style::default().fg(Color::Magenta)),
-            Span::styled(mem_bar, Style::default().fg(usage_color(mem_pct))),
-            Span::raw(format!(" {:3}%  ", mem_pct as u32)),
-            Span::raw(format!(
-                "{} / {}",
-                format_size(gpu.memory_used, BINARY),
-                format_size(gpu.memory_total, BINARY)
-            )),
-        ])];
+        let lines = vec![
+            Line::from(vec![
+                Span::styled("GPU  ", Style::default().fg(Color::Cyan)),
+                Span::styled(gpu_bar, Style::default().fg(usage_color(gpu_pct))),
+                Span::raw(format!(" {:3}%", gpu.gpu_utilization)),
+            ]),
+            Line::from(vec![
+                Span::styled("MEM  ", Style::default().fg(Color::Magenta)),
+                Span::styled(mem_bar, Style::default().fg(usage_color(mem_pct))),
+                Span::raw(format!(" {:3}%  ", mem_pct as u32)),
+                Span::raw(format!(
+                    "{} / {}",
+                    format_size(gpu.memory_used, BINARY),
+                    format_size(gpu.memory_total, BINARY)
+                )),
+            ]),
+        ];
 
         let block = Block::default().borders(Borders::ALL).title(title);
         let paragraph = Paragraph::new(lines).block(block);
