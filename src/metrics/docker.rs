@@ -4,7 +4,7 @@ use std::collections::HashMap;
 use tokio::runtime::Runtime;
 
 /// Information about a running Docker container.
-#[derive(Clone, Default, Debug)]
+#[derive(Clone, Default, Debug, serde::Serialize)]
 #[allow(dead_code)]
 pub struct ContainerInfo {
     pub id: String,

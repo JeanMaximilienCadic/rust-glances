@@ -243,7 +243,8 @@ pub fn render_disk_full(frame: &mut Frame, area: Rect, app: &App) {
     let header = Row::new(vec!["Filesystem", "Size", "Used", "Avail", "Use%", "Mounted on"])
         .style(Style::default().fg(Color::Rgb(200, 200, 255)).add_modifier(Modifier::BOLD));
 
-    let rows: Vec<Row> = app.system_metrics.disks.iter().filter(|d| d.total > 0).map(|disk| {
+    let mut rows: Vec<Row> = Vec::new();
+    for disk in app.system_metrics.disks.iter().filter(|d| d.total > 0) {
         let pct = (disk.used as f64 / disk.total as f64) * 100.0;
         let avail = disk.total.saturating_sub(disk.used);
 
@@ -256,15 +257,30 @@ pub fn render_disk_full(frame: &mut Frame, area: Rect, app: &App) {
             Color::Rgb(80, 220, 120)
         };
 
-        Row::new(vec![
+        let first_mp = disk.mount_points.first().cloned().unwrap_or_default();
+        // Main row with filesystem stats and first mount point
+        rows.push(Row::new(vec![
             Cell::from(disk.name.clone()).style(Style::default().fg(Color::Cyan)),
             Cell::from(format_size(disk.total, BINARY)),
             Cell::from(format_size(disk.used, BINARY)),
             Cell::from(format_size(avail, BINARY)),
             Cell::from(format!("{:>3.0}%", pct)).style(Style::default().fg(pct_color)),
-            Cell::from(disk.mount_point.clone()).style(Style::default().fg(Color::White)),
-        ])
-    }).collect();
+            Cell::from(first_mp).style(Style::default().fg(Color::White)),
+        ]));
+        // Tree rows for additional mount points
+        let extra = &disk.mount_points[1..];
+        for (i, mp) in extra.iter().enumerate() {
+            let prefix = if i == extra.len() - 1 { "└─ " } else { "├─ " };
+            rows.push(Row::new(vec![
+                Cell::from(""),
+                Cell::from(""),
+                Cell::from(""),
+                Cell::from(""),
+                Cell::from(""),
+                Cell::from(format!("{}{}", prefix, mp)).style(Style::default().fg(Color::DarkGray)),
+            ]));
+        }
+    }
 
     let table = Table::new(
         rows,

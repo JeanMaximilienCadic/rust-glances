@@ -1,7 +1,9 @@
 //! Data types and structures used throughout glances.
 
+use serde::Serialize;
+
 /// CPU core information.
-#[derive(Clone, Default)]
+#[derive(Clone, Default, Serialize)]
 pub struct CpuInfo {
     pub name: String,
     pub usage: f32,
@@ -9,7 +11,7 @@ pub struct CpuInfo {
 }
 
 /// CPU usage breakdown (percentages).
-#[derive(Clone, Default)]
+#[derive(Clone, Default, Serialize)]
 pub struct CpuBreakdown {
     pub user: f64,
     pub system: f64,
@@ -18,7 +20,7 @@ pub struct CpuBreakdown {
 }
 
 /// Memory and swap information.
-#[derive(Clone, Default)]
+#[derive(Clone, Default, Serialize)]
 pub struct MemoryInfo {
     pub total: u64,
     pub used: u64,
@@ -31,10 +33,10 @@ pub struct MemoryInfo {
 }
 
 /// Disk/filesystem information.
-#[derive(Clone, Default)]
+#[derive(Clone, Default, Serialize)]
 pub struct DiskInfo {
     pub name: String,
-    pub mount_point: String,
+    pub mount_points: Vec<String>,
     pub total: u64,
     pub used: u64,
     pub fs_type: String,
@@ -45,7 +47,7 @@ pub struct DiskInfo {
 }
 
 /// Network interface information.
-#[derive(Clone, Default)]
+#[derive(Clone, Default, Serialize)]
 pub struct NetworkInfo {
     pub interface: String,
     pub rx_bytes: u64,
@@ -55,7 +57,7 @@ pub struct NetworkInfo {
 }
 
 /// Process information.
-#[derive(Clone, Default)]
+#[derive(Clone, Default, Serialize)]
 pub struct ProcessInfo {
     pub pid: u32,
     pub name: String,
@@ -70,7 +72,7 @@ pub struct ProcessInfo {
 }
 
 /// GPU information from NVML.
-#[derive(Clone, Default)]
+#[derive(Clone, Default, Serialize)]
 #[allow(dead_code)]
 pub struct GpuInfo {
     pub index: u32,
@@ -93,7 +95,7 @@ pub struct GpuInfo {
 }
 
 /// GPU process information.
-#[derive(Clone, Default)]
+#[derive(Clone, Default, Serialize)]
 pub struct GpuProcessInfo {
     pub pid: u32,
     pub name: String,
@@ -106,7 +108,7 @@ pub struct GpuProcessInfo {
 }
 
 /// Aggregated system metrics.
-#[derive(Clone, Default)]
+#[derive(Clone, Default, Serialize)]
 pub struct SystemMetrics {
     pub hostname: String,
     pub os_name: String,
@@ -132,7 +134,7 @@ pub struct SystemMetrics {
 }
 
 /// GPU backend type.
-#[derive(Clone, Copy, Default, PartialEq)]
+#[derive(Clone, Copy, Default, PartialEq, Serialize)]
 #[allow(dead_code)]
 pub enum GpuBackend {
     #[default]
@@ -142,7 +144,7 @@ pub enum GpuBackend {
 }
 
 /// Aggregated GPU metrics.
-#[derive(Clone, Default)]
+#[derive(Clone, Default, Serialize)]
 pub struct GpuMetrics {
     pub gpus: Vec<GpuInfo>,
     pub processes: Vec<GpuProcessInfo>,
