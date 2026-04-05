@@ -165,8 +165,8 @@
           <span v-if="node.pane.data.system.power && node.pane.data.system.power.available" style="color:var(--fg2)">Power <strong style="color:var(--orange)">{{ node.pane.data.system.power.total_power_w.toFixed(1) }}W</strong></span>
         </div>
       </div>
-      <!-- CPU + Memory -->
-      <div class="row row-2">
+      <!-- CPU + Memory + Sensors (3-col when sensors available) -->
+      <div class="row" :class="$root.hasSensors(node.pane) && node.pane.displayMode !== 'minimal' ? 'row-3' : 'row-2'">
         <div class="card">
           <div class="card-title">CPU<span>{{ node.pane.data.system.cpu_count }}c &mdash; {{ node.pane.data.system.cpu_global.toFixed(1) }}%</span></div>
           <div class="card-body">
@@ -183,22 +183,28 @@
             <div :ref="el => { node.pane._memEl = el }" class="chart-container"></div>
           </div>
         </div>
-      </div>
-      <!-- Sensors — normal/full -->
-      <div class="card" v-if="$root.hasSensors(node.pane) && node.pane.displayMode !== 'minimal'">
-        <div class="card-title">Sensors</div>
-        <div class="card-body scroll-body" style="max-height:150px;">
-          <template v-if="node.pane.data.system.power && node.pane.data.system.power.available">
-            <div v-for="d in node.pane.data.system.power.domains" :key="d.name" class="gauge-row" style="margin-bottom:3px">
-              <span class="gauge-label" style="width:80px;font-size:10px">&#9889; {{ d.name }}</span>
-              <div class="gauge-bar" style="height:14px"><div class="gauge-fill" :style="{width: d.max_power_w ? Math.min(d.power_w/d.max_power_w*100,100)+'%' : '0%', background:'var(--orange)'}"></div><span class="gauge-text" style="font-size:9px">{{ d.power_w.toFixed(1) }}W</span></div>
+        <!-- Sensors — normal/full, in the same row -->
+        <div class="card" v-if="$root.hasSensors(node.pane) && node.pane.displayMode !== 'minimal'">
+          <div class="card-title">Sensors</div>
+          <div class="card-body scroll-body" style="max-height:220px;">
+            <template v-if="node.pane.data.system.power && node.pane.data.system.power.available">
+              <div v-for="d in node.pane.data.system.power.domains" :key="d.name" class="gauge-row" style="margin-bottom:3px">
+                <span class="gauge-label" style="width:80px;font-size:10px">&#9889; {{ d.name }}</span>
+                <div class="gauge-bar" style="height:14px"><div class="gauge-fill" :style="{width: d.max_power_w ? Math.min(d.power_w/d.max_power_w*100,100)+'%' : '0%', background:'var(--orange)'}"></div><span class="gauge-text" style="font-size:9px">{{ d.power_w.toFixed(1) }}W</span></div>
+              </div>
+              <div v-if="node.pane.data.system.temperatures && node.pane.data.system.temperatures.length" style="border-top:1px solid var(--border);margin:4px 0"></div>
+            </template>
+            <div v-for="[name,temp] in $root.sortTemps(node.pane)" :key="name" class="gauge-row" style="margin-bottom:3px">
+              <span class="gauge-label" style="width:80px;font-size:10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ name }}</span>
+              <div class="gauge-bar" style="height:14px"><div class="gauge-fill" :style="{width:Math.min(temp/105*100,100)+'%',background:$root.tempGrad(temp)}"></div><span class="gauge-text" style="font-size:9px">{{ temp.toFixed(0) }}&deg;C</span></div>
             </div>
-          </template>
-          <div v-for="[name,temp] in $root.sortTemps(node.pane)" :key="name" class="gauge-row" style="margin-bottom:3px">
-            <span class="gauge-label" style="width:80px;font-size:10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ name }}</span>
-            <div class="gauge-bar" style="height:14px"><div class="gauge-fill" :style="{width:Math.min(temp/105*100,100)+'%',background:$root.tempGrad(temp)}"></div><span class="gauge-text" style="font-size:9px">{{ temp.toFixed(0) }}&deg;C</span></div>
           </div>
         </div>
+      </div>
+      <!-- Per-core CPU overlay chart — normal/full -->
+      <div class="card" v-if="node.pane.data.system.cpus.length > 1 && node.pane.displayMode !== 'minimal'">
+        <div class="card-title">Per-Core CPU</div>
+        <div class="card-body"><div :ref="el => { node.pane._perCoreEl = el }" style="width:100%;height:150px;"></div></div>
       </div>
       <!-- Network + Disks — normal/full -->
       <div class="row row-2" v-if="node.pane.displayMode !== 'minimal'">
@@ -291,9 +297,10 @@ const app = createApp({
         data: null, connected: false, procFilter: '',
         displayMode: 'full',
         sorts: { net:{col:'interface',asc:true}, disk:{col:'name',asc:true}, docker:{col:'name',asc:true}, port:{col:'port',asc:true}, proc:{col:'cpu_usage',asc:false} },
-        _cpuEl: null, _memEl: null,
-        _cpuChart: null, _memChart: null,
+        _cpuEl: null, _memEl: null, _perCoreEl: null,
+        _cpuChart: null, _memChart: null, _perCoreChart: null,
         _cpuHist: Array(60).fill(0), _ramHist: Array(60).fill(0), _swapHist: Array(60).fill(0),
+        _coreHistories: [],
         _timer: null,
       });
       allPanes[id] = p;
@@ -305,6 +312,7 @@ const app = createApp({
       stopPolling(p);
       if (p._cpuChart) { p._cpuChart.dispose(); p._cpuChart = null; }
       if (p._memChart) { p._memChart.dispose(); p._memChart = null; }
+      if (p._perCoreChart) { p._perCoreChart.dispose(); p._perCoreChart = null; }
       delete allPanes[p.id];
     }
 
@@ -322,8 +330,14 @@ const app = createApp({
         await nextTick();
         if (p._cpuEl && !p._cpuChart) p._cpuChart = echarts.init(p._cpuEl);
         if (p._memEl && !p._memChart) p._memChart = echarts.init(p._memEl);
+        if (p._perCoreEl && !p._perCoreChart) p._perCoreChart = echarts.init(p._perCoreEl);
+        // Per-core histories
+        const nc = p.data.system.cpus.length;
+        while (p._coreHistories.length < nc) p._coreHistories.push(Array(60).fill(0));
+        for (let i = 0; i < nc; i++) { p._coreHistories[i].push(p.data.system.cpus[i].usage); p._coreHistories[i].shift(); }
         if (p._cpuChart) p._cpuChart.setOption(lineChart('#58a6ff', [...p._cpuHist]));
         if (p._memChart) p._memChart.setOption(dualChart([...p._ramHist], [...p._swapHist]));
+        if (p._perCoreChart) p._perCoreChart.setOption(perCoreChart(p._coreHistories, nc));
       } catch(e) { p.connected = false; }
     }
 
@@ -483,6 +497,17 @@ const app = createApp({
     }
 
     // Charts
+    const coreColors = ['#58a6ff','#f0883e','#3fb950','#bc8cff','#f85149','#79c0ff','#d29922','#da6ce6',
+      '#56d4dd','#e06c75','#98c379','#61afef','#c678dd','#e5c07b','#ff6b6b','#7ec8e3'];
+
+    function perCoreChart(histories, count) {
+      return { animation:false, grid:{left:30,right:8,top:22,bottom:16}, xAxis:{type:'category',data:Array(60).fill(''),show:false},
+        yAxis:{type:'value',min:0,max:100,splitLine:{lineStyle:{color:'#21262d'}},axisLabel:{color:'#8b949e',fontSize:9}},
+        legend:{data:Array.from({length:count},(_,i)=>'C'+i),textStyle:{color:'#8b949e',fontSize:8},top:0,type:'scroll',pageTextStyle:{color:'#8b949e'}},
+        series:histories.map((h,i)=>({name:'C'+i,type:'line',data:[...h],smooth:true,symbol:'none',lineStyle:{width:1.2,color:coreColors[i%coreColors.length]}}))
+      };
+    }
+
     function lineChart(color, data) {
       return { animation:false, grid:{left:30,right:8,top:8,bottom:16}, xAxis:{type:'category',data:Array(60).fill(''),show:false},
         yAxis:{type:'value',min:0,max:100,splitLine:{lineStyle:{color:'#21262d'}},axisLabel:{color:'#8b949e',fontSize:9}},
@@ -511,7 +536,7 @@ const app = createApp({
     onMounted(() => {
       const p = createPane(window.location.origin);
       tree.value = reactive({ type: 'leaf', pane: p });
-      window.addEventListener('resize', () => { Object.values(allPanes).forEach(p => { p._cpuChart?.resize(); p._memChart?.resize(); }); });
+      window.addEventListener('resize', () => { Object.values(allPanes).forEach(p => { p._cpuChart?.resize(); p._memChart?.resize(); p._perCoreChart?.resize(); }); });
     });
     onUnmounted(() => { Object.values(allPanes).forEach(p => stopPolling(p)); });
 
