@@ -14,6 +14,7 @@ pub mod http_dialog;
 mod layout;
 #[cfg(feature = "docker")]
 pub mod logs_dialog;
+mod ports;
 mod processes;
 mod system;
 pub mod tabs;

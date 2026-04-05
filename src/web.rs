@@ -7,12 +7,13 @@ use std::time::{Duration, Instant};
 use axum::extract::State;
 use axum::http::{header, StatusCode};
 use axum::response::IntoResponse;
-use axum::routing::get;
+use axum::routing::{get, post};
 use axum::{Json, Router};
-use serde::Serialize;
-use sysinfo::{Components, Disks, Networks, System, Users};
+use serde::{Deserialize, Serialize};
+use sysinfo::{Components, Disks, Networks, Pid, Signal, System, Users};
 use tower_http::cors::CorsLayer;
 
+use crate::metrics::ports::{collect_port_processes, PortProcessInfo};
 use crate::metrics::{collect_gpu_metrics, collect_system_metrics, GpuHandle};
 use crate::types::{GpuMetrics, SystemMetrics};
 
@@ -31,6 +32,7 @@ struct AllMetrics {
     system: SystemMetrics,
     gpu: Option<GpuMetrics>,
     docker: Vec<ContainerInfo>,
+    ports: Vec<PortProcessInfo>,
 }
 
 /// Shared application state for the web server.
@@ -50,6 +52,7 @@ struct WebState {
     system_metrics: SystemMetrics,
     gpu_metrics: Option<GpuMetrics>,
     docker_containers: Vec<ContainerInfo>,
+    port_processes: Vec<PortProcessInfo>,
     #[cfg(feature = "docker")]
     docker_handle: DockerHandle,
     #[cfg(feature = "docker")]
@@ -93,6 +96,8 @@ impl WebState {
                 &mut self.last_docker_cpu,
             );
         }
+
+        self.port_processes = collect_port_processes(&self.system, &self.users);
     }
 }
 
@@ -123,6 +128,7 @@ pub fn run_web_server(
         system_metrics: SystemMetrics::default(),
         gpu_metrics: None,
         docker_containers: Vec::new(),
+        port_processes: Vec::new(),
         #[cfg(feature = "docker")]
         docker_handle: DockerHandle::new(),
         #[cfg(feature = "docker")]
@@ -166,6 +172,8 @@ pub fn run_web_server(
                 .route("/api/v1/system", get(api_system))
                 .route("/api/v1/gpu", get(api_gpu))
                 .route("/api/v1/docker", get(api_docker))
+                .route("/api/v1/ports", get(api_ports))
+                .route("/api/v1/kill", post(api_kill))
                 .layer(CorsLayer::permissive())
                 .with_state(state);
 
@@ -192,6 +200,7 @@ async fn api_all(State(state): State<SharedState>) -> impl IntoResponse {
         system: s.system_metrics.clone(),
         gpu: s.gpu_metrics.clone(),
         docker: s.docker_containers.clone(),
+        ports: s.port_processes.clone(),
     })
 }
 
@@ -208,4 +217,61 @@ async fn api_gpu(State(state): State<SharedState>) -> impl IntoResponse {
 async fn api_docker(State(state): State<SharedState>) -> impl IntoResponse {
     let s = state.lock().unwrap();
     Json(s.docker_containers.clone())
+}
+
+async fn api_ports(State(state): State<SharedState>) -> impl IntoResponse {
+    let s = state.lock().unwrap();
+    Json(s.port_processes.clone())
+}
+
+#[derive(Deserialize)]
+struct KillRequest {
+    pid: u32,
+    signal: String,
+}
+
+#[derive(Serialize)]
+struct KillResponse {
+    ok: bool,
+    message: String,
+}
+
+async fn api_kill(
+    State(state): State<SharedState>,
+    Json(req): Json<KillRequest>,
+) -> impl IntoResponse {
+    let mut s = state.lock().unwrap();
+    s.system.refresh_processes(sysinfo::ProcessesToUpdate::All, true);
+
+    let signal = match req.signal.to_uppercase().as_str() {
+        "KILL" | "SIGKILL" => Signal::Kill,
+        "INT" | "SIGINT" => Signal::Interrupt,
+        _ => Signal::Term,
+    };
+    let signal_name = match signal {
+        Signal::Kill => "SIGKILL",
+        Signal::Term => "SIGTERM",
+        Signal::Interrupt => "SIGINT",
+        _ => "signal",
+    };
+
+    let pid = Pid::from_u32(req.pid);
+    if let Some(process) = s.system.process(pid) {
+        if process.kill_with(signal).unwrap_or(false) {
+            Json(KillResponse {
+                ok: true,
+                message: format!("Sent {} to PID {}", signal_name, req.pid),
+            })
+        } else {
+            Json(KillResponse {
+                ok: false,
+                message: format!("Failed to send {} to PID {}", signal_name, req.pid),
+            })
+        }
+    } else {
+        Json(KillResponse {
+            ok: false,
+            message: format!("Process {} not found", req.pid),
+        })
+    }
 }

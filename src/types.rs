@@ -253,6 +253,7 @@ pub enum SortColumn {
 pub enum ActivePanel {
     CpuProcesses,
     GpuProcesses,
+    Ports,
 }
 
 /// Kill confirmation dialog state.

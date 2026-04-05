@@ -54,6 +54,17 @@
   .tree-indent { color:var(--fg2); margin-right:4px; }
   .fs-name { color:var(--cyan); }
   .loading { text-align:center; padding:40px; color:var(--fg2); }
+  .kill-btn { background:var(--bg3); border:1px solid var(--red); color:var(--red); padding:2px 8px;
+    border-radius:3px; font-size:11px; cursor:pointer; font-family:inherit; }
+  .kill-btn:hover { background:var(--red); color:#fff; }
+  .modal-overlay { position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,.6); display:flex; align-items:center; justify-content:center; z-index:100; }
+  .modal { background:var(--bg2); border:1px solid var(--border); border-radius:8px; padding:20px; min-width:340px; text-align:center; }
+  .modal h3 { margin-bottom:12px; color:var(--red); }
+  .modal p { margin-bottom:16px; color:var(--fg); font-size:13px; }
+  .modal .btn-row { display:flex; gap:8px; justify-content:center; }
+  .modal button { padding:6px 16px; border-radius:4px; border:1px solid var(--border); cursor:pointer; font-family:inherit; font-size:12px; }
+  .modal .btn-kill { background:var(--red); color:#fff; border-color:var(--red); }
+  .modal .btn-cancel { background:var(--bg3); color:var(--fg); }
 </style>
 </head>
 <body>
@@ -72,6 +83,20 @@
         <option :value="10000">10s</option>
       </select>
       <button @click="toggleTheme">{{ darkMode ? 'Light' : 'Dark' }}</button>
+    </div>
+  </div>
+
+  <!-- Kill confirmation modal -->
+  <div v-if="killTarget" class="modal-overlay" @click.self="killTarget=null">
+    <div class="modal">
+      <h3>Kill Process</h3>
+      <p>Send SIGTERM to <strong>{{ killTarget.name }}</strong> (PID {{ killTarget.pid }}, port {{ killTarget.port }})?</p>
+      <div class="btn-row">
+        <button class="btn-cancel" @click="killTarget=null">Cancel</button>
+        <button class="btn-kill" @click="executeKill(killTarget.pid, 'TERM')">SIGTERM</button>
+        <button class="btn-kill" @click="executeKill(killTarget.pid, 'KILL')">SIGKILL</button>
+      </div>
+      <p v-if="killResult" style="margin-top:12px;font-size:11px" :style="{color: killResult.ok ? 'var(--green)' : 'var(--red)'}">{{ killResult.msg }}</p>
     </div>
   </div>
 
@@ -249,6 +274,45 @@
       </div>
     </div>
 
+    <!-- Listening Ports -->
+    <div v-if="data.ports && data.ports.length" class="card">
+      <div class="card-title">Listening Ports<span>{{ data.ports.length }}</span></div>
+      <div class="card-body" style="max-height:350px;overflow-y:auto">
+        <table>
+          <thead>
+            <tr>
+              <th @click="sortPorts('port')">Port{{ portSort==='port' ? (portAsc?' \u25B2':' \u25BC') : '' }}</th>
+              <th>Proto</th>
+              <th @click="sortPorts('pid')">PID{{ portSort==='pid' ? (portAsc?' \u25B2':' \u25BC') : '' }}</th>
+              <th @click="sortPorts('name')">Name{{ portSort==='name' ? (portAsc?' \u25B2':' \u25BC') : '' }}</th>
+              <th>User</th>
+              <th>CPU%</th>
+              <th>MEM</th>
+              <th>Bind</th>
+              <th>Command</th>
+              <th style="width:50px"></th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="p in sortedPorts" :key="p.pid+'-'+p.port">
+              <td style="color:var(--orange);font-weight:700">{{ p.port }}</td>
+              <td :style="{color: p.protocol==='tcp6' ? 'var(--purple)' : 'var(--green)'}">{{ p.protocol }}</td>
+              <td>{{ p.pid }}</td>
+              <td class="fs-name">{{ p.name }}</td>
+              <td>{{ p.user }}</td>
+              <td :class="pctClass(p.cpu_usage)">{{ p.cpu_usage.toFixed(1) }}</td>
+              <td>{{ formatBytes(p.memory_bytes) }}</td>
+              <td style="color:var(--fg2)">{{ p.bind_address }}</td>
+              <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;color:var(--fg2)">{{ p.command }}</td>
+              <td>
+                <button class="kill-btn" @click="confirmKill(p)" title="Kill process">Kill</button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
     <!-- Processes -->
     <div class="card">
       <div class="card-title">
@@ -299,6 +363,10 @@ createApp({
     const procFilter = ref('');
     const procSort = ref('cpu_usage');
     const procAsc = ref(false);
+    const portSort = ref('port');
+    const portAsc = ref(true);
+    const killTarget = ref(null);
+    const killResult = ref(null);
     const cpuChart = ref(null);
     const memChart = ref(null);
     let cpuChartInst = null, memChartInst = null;
@@ -332,6 +400,39 @@ createApp({
     function sortProcs(col) {
       if (procSort.value === col) procAsc.value = !procAsc.value;
       else { procSort.value = col; procAsc.value = false; }
+    }
+
+    const sortedPorts = computed(() => {
+      if (!data.value || !data.value.ports) return [];
+      let ports = [...data.value.ports];
+      ports.sort((a, b) => {
+        let va = a[portSort.value], vb = b[portSort.value];
+        if (typeof va === 'string') { va = va.toLowerCase(); vb = vb.toLowerCase(); }
+        if (va < vb) return portAsc.value ? -1 : 1;
+        if (va > vb) return portAsc.value ? 1 : -1;
+        return 0;
+      });
+      return ports;
+    });
+
+    function sortPorts(col) {
+      if (portSort.value === col) portAsc.value = !portAsc.value;
+      else { portSort.value = col; portAsc.value = true; }
+    }
+
+    function confirmKill(p) { killTarget.value = p; killResult.value = null; }
+
+    async function executeKill(pid, signal) {
+      try {
+        const resp = await fetch('/api/v1/kill', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ pid, signal })
+        });
+        const result = await resp.json();
+        killResult.value = { ok: result.ok, msg: result.message };
+        if (result.ok) setTimeout(() => { killTarget.value = null; killResult.value = null; }, 1500);
+      } catch(e) { killResult.value = { ok: false, msg: 'Request failed: ' + e.message }; }
     }
 
     function formatBytes(b) {
@@ -396,6 +497,7 @@ createApp({
     onUnmounted(() => { if (timer) clearInterval(timer); });
 
     return { data, connected, refreshInterval, darkMode, procFilter, procSort, procAsc, cpuChart, memChart,
+      portSort, portAsc, sortedPorts, sortPorts, killTarget, killResult, confirmKill, executeKill,
       memPct, swapPct, filteredProcs, sortProcs, formatBytes, formatRate, formatUptime, pctColor, pctClass,
       diskPct, toggleTheme, restartPolling };
   }
