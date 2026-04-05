@@ -131,10 +131,9 @@
 
 <!-- Recursive split-node component -->
 <script type="text/x-template" id="split-node-tpl">
-  <!-- Split node: renders two children side by side -->
+  <!-- Split node: flatten same-direction chains for equal sizing -->
   <div v-if="node.type==='split'" class="split-container" :class="node.dir==='h'?'split-h':'split-v'">
-    <split-node :node="node.children[0]" :depth="depth+1"></split-node>
-    <split-node :node="node.children[1]" :depth="depth+1"></split-node>
+    <split-node v-for="(child, i) in flatChildren" :key="i" :node="child" :depth="depth+1"></split-node>
   </div>
   <!-- Leaf node: renders a dashboard pane -->
   <div v-else class="pane">
@@ -544,7 +543,23 @@ const app = createApp({
 // Recursive split-node component
 app.component('split-node', {
   template: '#split-node-tpl',
-  props: { node: Object, depth: Number }
+  props: { node: Object, depth: Number },
+  computed: {
+    flatChildren() {
+      if (this.node.type !== 'split') return [];
+      // Flatten consecutive same-direction splits into one flex container
+      const result = [];
+      const collect = (n) => {
+        if (n.type === 'split' && n.dir === this.node.dir) {
+          n.children.forEach(collect);
+        } else {
+          result.push(n);
+        }
+      };
+      this.node.children.forEach(collect);
+      return result;
+    }
+  }
 });
 
 app.mount('#app');
