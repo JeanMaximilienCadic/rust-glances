@@ -188,6 +188,8 @@ pub fn run_web_server(
     refresh_ms: u64,
     gpu_enabled: bool,
     docker_enabled: bool,
+    tls_cert: Option<&str>,
+    tls_key: Option<&str>,
 ) -> anyhow::Result<()> {
     // Build state outside of any async runtime (DockerHandle creates its own)
     let mut system = System::new_all();
@@ -228,37 +230,32 @@ pub fn run_web_server(
     let addr_http = format!("{}:{}", bind, port);
     let addr_https = format!("{}:{}", bind, https_port);
 
-    // Generate self-signed TLS certificate
-    let cert = rcgen::generate_simple_self_signed(vec![
-        "localhost".to_string(),
-        bind.to_string(),
-        "127.0.0.1".to_string(),
-    ])
-    .expect("Failed to generate self-signed certificate");
-
-    let cert_pem = cert.cert.pem();
-    let key_pem = cert.key_pair.serialize_pem();
-
-    let tls_config = {
-        let cert_chain = vec![rustls::pki_types::CertificateDer::from(
-            cert.cert.der().to_vec(),
-        )];
-        let key_der = rustls::pki_types::PrivateKeyDer::try_from(
-            cert.key_pair.serialize_der(),
+    // TLS cert: use provided files or generate self-signed
+    let (cert_pem_bytes, key_pem_bytes, cert_label) = if let (Some(cert_path), Some(key_path)) =
+        (tls_cert, tls_key)
+    {
+        let c = std::fs::read(cert_path)
+            .unwrap_or_else(|e| panic!("Failed to read TLS cert {}: {}", cert_path, e));
+        let k = std::fs::read(key_path)
+            .unwrap_or_else(|e| panic!("Failed to read TLS key {}: {}", key_path, e));
+        (c, k, "custom")
+    } else {
+        let cert = rcgen::generate_simple_self_signed(vec![
+            "localhost".to_string(),
+            bind.to_string(),
+            "127.0.0.1".to_string(),
+        ])
+        .expect("Failed to generate self-signed certificate");
+        (
+            cert.cert.pem().into_bytes(),
+            cert.key_pair.serialize_pem().into_bytes(),
+            "self-signed",
         )
-        .expect("Failed to parse private key");
-
-        let mut config = rustls::ServerConfig::builder()
-            .with_no_client_auth()
-            .with_single_cert(cert_chain, key_der)
-            .expect("Failed to build TLS config");
-        config.alpn_protocols = vec![b"h2".to_vec(), b"http/1.1".to_vec()];
-        config
     };
 
     println!("Glances web server running:");
     println!("  HTTP:  http://{}/", addr_http);
-    println!("  HTTPS: https://{}/ (self-signed)", addr_https);
+    println!("  HTTPS: https://{}/ ({})", addr_https, cert_label);
     println!("  API:   http://{}/api/v1/all", addr_http);
 
     // Now build a tokio runtime for the HTTP server only
@@ -304,10 +301,10 @@ pub fn run_web_server(
                 axum::serve(listener, http_app).await.ok();
             });
 
-            // HTTPS server with self-signed cert
+            // HTTPS server
             let rustls_config = axum_server::tls_rustls::RustlsConfig::from_pem(
-                cert_pem.into_bytes(),
-                key_pem.into_bytes(),
+                cert_pem_bytes,
+                key_pem_bytes,
             )
             .await?;
 

@@ -48,4 +48,12 @@ pub struct Cli {
     /// Web server bind address (default: 0.0.0.0)
     #[arg(long, default_value = "0.0.0.0")]
     pub bind: String,
+
+    /// TLS certificate file (PEM). If provided with --tls-key, serves HTTPS with this cert instead of self-signed.
+    #[arg(long)]
+    pub tls_cert: Option<String>,
+
+    /// TLS private key file (PEM). Required with --tls-cert.
+    #[arg(long)]
+    pub tls_key: Option<String>,
 }
