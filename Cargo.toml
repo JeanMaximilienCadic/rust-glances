@@ -1,6 +1,6 @@
 [package]
 name = "glances"
-version = "0.6.0"
+version = "0.6.1"
 edition = "2021"
 description = "A modern Glances-inspired TUI system monitor written in Rust — CPU, memory, GPU, Docker, network, disk, battery, alerts, and container API testing"
 license = "MIT"
