@@ -71,6 +71,7 @@ impl WebState {
         self.refresh_count = self.refresh_count.wrapping_add(1);
 
         // Every cycle: CPU + memory + processes + networks
+        self.system.refresh_cpu_usage();
         self.system
             .refresh_processes(sysinfo::ProcessesToUpdate::All, true);
         self.system.refresh_memory();
@@ -93,27 +94,61 @@ impl WebState {
             elapsed,
         );
 
-        if self.gpu_enabled {
-            self.gpu_metrics =
-                collect_gpu_metrics(&self.gpu_handle, &self.system, &self.users);
-        }
+        // Parallel collection of independent metrics
+        let gpu_enabled = self.gpu_enabled;
+        let do_slow = self.refresh_count % 5 == 0;
 
-        #[cfg(feature = "docker")]
-        if self.docker_enabled && self.refresh_count % 5 == 0 {
-            self.docker_containers = collect_docker_metrics(&self.docker_handle);
-            collect_docker_stats(
-                &self.docker_handle,
-                &mut self.docker_containers,
-                &mut self.last_docker_cpu,
-            );
-        }
+        std::thread::scope(|s| {
+            // GPU (independent)
+            let gpu_handle = s.spawn(|| {
+                if gpu_enabled {
+                    collect_gpu_metrics(&self.gpu_handle, &self.system, &self.users)
+                } else {
+                    None
+                }
+            });
 
-        self.system_metrics.power = collect_power_metrics(&mut self.rapl_state, elapsed);
+            // Power (independent — only reads sysfs)
+            let power_handle = s.spawn(|| {
+                collect_power_metrics(&mut self.rapl_state, elapsed)
+            });
 
-        // Every 5 cycles: port scanning (expensive)
-        if self.refresh_count % 5 == 0 {
-            self.port_processes = collect_port_processes(&self.system, &self.users);
-        }
+            // Ports (independent — reads /proc, expensive)
+            let port_handle = s.spawn(|| {
+                if do_slow {
+                    Some(collect_port_processes(&self.system, &self.users))
+                } else {
+                    None
+                }
+            });
+
+            // Docker (independent — has its own runtime)
+            #[cfg(feature = "docker")]
+            let docker_handle = s.spawn(|| {
+                if self.docker_enabled && do_slow {
+                    let mut containers = collect_docker_metrics(&self.docker_handle);
+                    collect_docker_stats(
+                        &self.docker_handle,
+                        &mut containers,
+                        &mut self.last_docker_cpu,
+                    );
+                    Some(containers)
+                } else {
+                    None
+                }
+            });
+
+            // Collect results
+            self.gpu_metrics = gpu_handle.join().unwrap_or(None);
+            self.system_metrics.power = power_handle.join().unwrap_or_default();
+            if let Some(ports) = port_handle.join().unwrap_or(None) {
+                self.port_processes = ports;
+            }
+            #[cfg(feature = "docker")]
+            if let Some(containers) = docker_handle.join().unwrap_or(None) {
+                self.docker_containers = containers;
+            }
+        });
     }
 }
 

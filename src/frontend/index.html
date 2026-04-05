@@ -374,7 +374,15 @@
           </tbody>
         </table>
       </div>
+    <!-- System hints footer -->
+    <div class="card" v-if="hints.length" style="border-color:var(--bg3)">
+      <div class="card-body" style="padding:8px 16px;">
+        <div v-for="h in hints" :key="h" style="font-size:11px;color:var(--fg2);margin:2px 0;">
+          <span style="color:var(--orange);margin-right:6px;">&#9432;</span>{{ h }}
+        </div>
+      </div>
     </div>
+
   </div>
 </div>
 
@@ -524,6 +532,24 @@ createApp({
       const hasPower = data.value.system.power && data.value.system.power.available;
       return hasTemp || hasPower;
     });
+
+    const hints = computed(() => {
+      if (!data.value) return [];
+      const h = [];
+      if (!data.value.system.power || !data.value.system.power.available) {
+        h.push('Power monitoring: enable Intel RAPL with "sudo chmod a+r /sys/class/powercap/intel-rapl:*/energy_uj /sys/class/powercap/intel-rapl:*:*/energy_uj" (Linux x86 only). For ARM, hwmon INA sensors may be available.');
+      }
+      if (!data.value.system.temperatures || !data.value.system.temperatures.length) {
+        h.push('Temperature sensors not detected. Ensure lm-sensors is installed: "sudo apt install lm-sensors && sudo sensors-detect".');
+      }
+      if (!data.value.gpu) {
+        h.push('GPU monitoring: build with --features gpu. Requires NVIDIA drivers (NVML) on Linux or Metal on macOS.');
+      }
+      if (!data.value.docker || !data.value.docker.length) {
+        h.push('Docker monitoring: build with --features docker. Ensure the Docker daemon is running and the current user is in the docker group.');
+      }
+      return h;
+    });
     const sortedTemps = computed(() => {
       if (!data.value || !data.value.system.temperatures) return [];
       return [...data.value.system.temperatures].sort((a, b) => b[1] - a[1]);
@@ -617,7 +643,7 @@ createApp({
       sorts, doSort, sortIcon, sortedNets, sortedDisks, sortedDocker, sortedPorts, filteredProcs,
       killTarget, killResult, confirmKill, executeKill,
       memPct, swapPct, formatBytes, formatRate, formatUptime, pctColor, pctClass,
-      diskPct, tempGradient, maxTemp, sortedTemps, hasTempOrPower, toggleTheme, restartPolling };
+      diskPct, tempGradient, maxTemp, sortedTemps, hasTempOrPower, hints, toggleTheme, restartPolling };
   }
 }).mount('#app');
 </script>
