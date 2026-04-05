@@ -317,6 +317,10 @@ const app = createApp({
         const sp = p.data.system.memory.swap_total ? (p.data.system.memory.swap_used / p.data.system.memory.swap_total * 100) : 0;
         p._swapHist.push(sp); p._swapHist.shift();
         await nextTick();
+        // Recreate charts if DOM element changed (e.g. after split)
+        if (p._cpuChart && p._cpuChart.getDom() !== p._cpuEl) { p._cpuChart.dispose(); p._cpuChart = null; }
+        if (p._memChart && p._memChart.getDom() !== p._memEl) { p._memChart.dispose(); p._memChart = null; }
+        if (p._perCoreChart && p._perCoreChart.getDom() !== p._perCoreEl) { p._perCoreChart.dispose(); p._perCoreChart = null; }
         if (p._cpuEl && !p._cpuChart) p._cpuChart = echarts.init(p._cpuEl);
         if (p._memEl && !p._memChart) p._memChart = echarts.init(p._memEl);
         if (p._perCoreEl && !p._perCoreChart) p._perCoreChart = echarts.init(p._perCoreEl);
