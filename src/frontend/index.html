@@ -107,11 +107,12 @@
         <span style="color:var(--fg2)">Load <strong style="color:var(--fg)">{{ data.system.load_avg[0].toFixed(2) }} {{ data.system.load_avg[1].toFixed(2) }} {{ data.system.load_avg[2].toFixed(2) }}</strong></span>
         <span style="color:var(--fg2)">Processes <strong style="color:var(--fg)">{{ data.system.process_count }}</strong> ({{ data.system.thread_count }} threads)</span>
         <span v-if="data.system.battery_pct != null" style="color:var(--fg2)">Battery <strong :style="{color: data.system.battery_pct > 20 ? 'var(--green)' : 'var(--red)'}">{{ data.system.battery_pct.toFixed(0) }}%</strong> {{ data.system.battery_state }}</span>
+        <span v-if="data.system.power && data.system.power.available" style="color:var(--fg2)">Power <strong style="color:var(--orange)">{{ data.system.power.total_power_w.toFixed(1) }}W</strong></span>
       </div>
     </div>
 
-    <!-- CPU + Memory + Temperatures -->
-    <div class="row row-3" :class="{'row-2': !data.system.temperatures || !data.system.temperatures.length}">
+    <!-- CPU + Memory + Temperatures & Power -->
+    <div class="row row-3" :class="{'row-2': !hasTempOrPower}">
       <div class="card">
         <div class="card-title">CPU<span>{{ data.system.cpu_count }} cores &mdash; {{ data.system.cpu_global.toFixed(1) }}%</span></div>
         <div class="card-body">
@@ -144,10 +145,22 @@
           <div ref="memChart" class="chart-container"></div>
         </div>
       </div>
-      <!-- Temperatures -->
-      <div class="card" v-if="data.system.temperatures && data.system.temperatures.length">
-        <div class="card-title">Temperatures<span>{{ maxTemp(data.system.temperatures).toFixed(0) }}&deg;C peak</span></div>
+      <!-- Temperatures & Power -->
+      <div class="card" v-if="hasTempOrPower">
+        <div class="card-title">Sensors<span v-if="data.system.temperatures && data.system.temperatures.length">{{ maxTemp(data.system.temperatures).toFixed(0) }}&deg;C peak</span></div>
         <div class="card-body scroll-body" style="max-height:280px;">
+          <!-- Power domains -->
+          <template v-if="data.system.power && data.system.power.available">
+            <div v-for="d in data.system.power.domains" :key="d.name" class="gauge-row" style="margin-bottom:4px">
+              <span class="gauge-label" style="width:100px;font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" :title="d.name">&#9889; {{ d.name }}</span>
+              <div class="gauge-bar" style="height:16px">
+                <div class="gauge-fill" :style="{width: d.max_power_w ? Math.min(d.power_w/d.max_power_w*100,100)+'%' : '0%', background: 'var(--orange)'}"></div>
+                <span class="gauge-text" style="font-size:10px">{{ d.power_w.toFixed(1) }}W{{ d.max_power_w ? ' / '+d.max_power_w.toFixed(0)+'W' : '' }}</span>
+              </div>
+            </div>
+            <div v-if="data.system.temperatures && data.system.temperatures.length" style="border-top:1px solid var(--border);margin:6px 0"></div>
+          </template>
+          <!-- Temperature sensors -->
           <div v-for="[name,temp] in sortedTemps" :key="name" class="gauge-row" style="margin-bottom:4px">
             <span class="gauge-label" style="width:100px;font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" :title="name">{{ name }}</span>
             <div class="gauge-bar" style="height:16px">
@@ -505,6 +518,12 @@ createApp({
       return '#3fb950';
     }
     function maxTemp(temps) { return temps.reduce((m, [,t]) => Math.max(m, t), 0); }
+    const hasTempOrPower = computed(() => {
+      if (!data.value) return false;
+      const hasTemp = data.value.system.temperatures && data.value.system.temperatures.length > 0;
+      const hasPower = data.value.system.power && data.value.system.power.available;
+      return hasTemp || hasPower;
+    });
     const sortedTemps = computed(() => {
       if (!data.value || !data.value.system.temperatures) return [];
       return [...data.value.system.temperatures].sort((a, b) => b[1] - a[1]);
@@ -598,7 +617,7 @@ createApp({
       sorts, doSort, sortIcon, sortedNets, sortedDisks, sortedDocker, sortedPorts, filteredProcs,
       killTarget, killResult, confirmKill, executeKill,
       memPct, swapPct, formatBytes, formatRate, formatUptime, pctColor, pctClass,
-      diskPct, tempGradient, maxTemp, sortedTemps, toggleTheme, restartPolling };
+      diskPct, tempGradient, maxTemp, sortedTemps, hasTempOrPower, toggleTheme, restartPolling };
   }
 }).mount('#app');
 </script>

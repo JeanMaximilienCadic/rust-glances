@@ -7,6 +7,7 @@ pub mod docker;
 mod gpu;
 
 pub mod ports;
+pub mod power;
 mod system;
 
 #[cfg(feature = "gpu")]

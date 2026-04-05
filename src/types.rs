@@ -131,6 +131,7 @@ pub struct SystemMetrics {
     pub battery_pct: Option<f64>,
     pub battery_state: String,
     pub battery_time_to_empty: Option<f64>,
+    pub power: crate::metrics::power::PowerMetrics,
 }
 
 /// GPU backend type.

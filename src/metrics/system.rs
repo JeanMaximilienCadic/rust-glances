@@ -282,5 +282,6 @@ pub fn collect_system_metrics(
         battery_pct,
         battery_state,
         battery_time_to_empty,
+        power: crate::metrics::power::PowerMetrics::default(),
     }
 }

@@ -14,6 +14,7 @@ use sysinfo::{Components, Disks, Networks, Pid, Signal, System, Users};
 use tower_http::cors::CorsLayer;
 
 use crate::metrics::ports::{collect_port_processes, PortProcessInfo};
+use crate::metrics::power::{collect_power_metrics, RaplState};
 use crate::metrics::{collect_gpu_metrics, collect_system_metrics, GpuHandle};
 use crate::types::{GpuMetrics, SystemMetrics};
 
@@ -45,6 +46,7 @@ struct WebState {
     gpu_handle: GpuHandle,
     last_network_stats: HashMap<String, (u64, u64)>,
     last_disk_stats: HashMap<String, (u64, u64)>,
+    rapl_state: RaplState,
     last_update: Instant,
     gpu_enabled: bool,
     docker_enabled: bool,
@@ -97,6 +99,7 @@ impl WebState {
             );
         }
 
+        self.system_metrics.power = collect_power_metrics(&mut self.rapl_state, elapsed);
         self.port_processes = collect_port_processes(&self.system, &self.users);
     }
 }
@@ -122,6 +125,7 @@ pub fn run_web_server(
         gpu_handle: GpuHandle::new(),
         last_network_stats: HashMap::new(),
         last_disk_stats: HashMap::new(),
+        rapl_state: RaplState::default(),
         last_update: Instant::now(),
         gpu_enabled,
         docker_enabled,
