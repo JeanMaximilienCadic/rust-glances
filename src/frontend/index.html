@@ -13,67 +13,84 @@
     --orange: #d29922; --red: #f85149; --cyan: #79c0ff; --purple: #bc8cff;
   }
   * { margin:0; padding:0; box-sizing:border-box; }
-  body { font-family: 'SF Mono','Fira Code',monospace; background:var(--bg); color:var(--fg); font-size:13px; }
-  .header { background:var(--bg2); border-bottom:1px solid var(--border); padding:12px 20px; display:flex; justify-content:space-between; align-items:center; }
-  .header h1 { font-size:18px; color:var(--accent); font-weight:600; }
-  .header .info { color:var(--fg2); font-size:12px; }
-  .header .controls { display:flex; gap:8px; align-items:center; }
-  .header .controls select, .header .controls button {
-    background:var(--bg3); border:1px solid var(--border); color:var(--fg); padding:4px 8px;
-    border-radius:4px; font-size:12px; cursor:pointer;
+  body { font-family: 'SF Mono','Fira Code',monospace; background:var(--bg); color:var(--fg); font-size:13px; height:100vh; overflow:hidden; }
+  .app-header { background:var(--bg2); border-bottom:1px solid var(--border); padding:8px 16px; display:flex; justify-content:space-between; align-items:center; flex-shrink:0; }
+  .app-header h1 { font-size:16px; color:var(--accent); font-weight:600; }
+  .app-header .controls { display:flex; gap:6px; align-items:center; }
+  .app-header .controls select, .app-header .controls button, .pane-bar button {
+    background:var(--bg3); border:1px solid var(--border); color:var(--fg); padding:3px 8px;
+    border-radius:4px; font-size:11px; cursor:pointer; font-family:inherit;
   }
-  .header .controls button:hover { border-color:var(--accent); }
-  .header .controls .dot { width:8px; height:8px; border-radius:50%; background:var(--green); display:inline-block; }
-  .dashboard { padding:16px; display:grid; gap:12px; }
-  .row { display:grid; gap:12px; }
+  .app-header .controls button:hover, .pane-bar button:hover { border-color:var(--accent); }
+  .split-container { display:flex; flex:1; overflow:hidden; }
+  .split-h { flex-direction:row; }
+  .split-v { flex-direction:column; }
+  .split-container > .pane, .split-container > .split-container { flex:1; min-width:0; min-height:0; }
+  .pane { display:flex; flex-direction:column; border:1px solid var(--border); overflow:hidden; }
+  .pane-bar { background:var(--bg2); border-bottom:1px solid var(--border); padding:4px 8px; display:flex; justify-content:space-between; align-items:center; font-size:11px; flex-shrink:0; }
+  .pane-bar .pane-info { display:flex; align-items:center; gap:6px; color:var(--fg2); overflow:hidden; }
+  .pane-bar .pane-info .dot { width:6px; height:6px; border-radius:50%; display:inline-block; flex-shrink:0; }
+  .pane-bar .pane-info .hostname { color:var(--cyan); font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .pane-bar .pane-controls { display:flex; gap:4px; flex-shrink:0; }
+  .pane-bar button { padding:2px 6px; font-size:10px; }
+  .pane-content { flex:1; overflow-y:auto; padding:8px; display:grid; gap:8px; align-content:start; }
+  .dashboard { display:grid; gap:8px; }
+  .row { display:grid; gap:8px; }
   .row-2 { grid-template-columns: 1fr 1fr; }
   .row-3 { grid-template-columns: 1fr 1fr 1fr; }
   @media(max-width:900px) { .row-2,.row-3 { grid-template-columns:1fr; } }
-  .card { background:var(--bg2); border:1px solid var(--border); border-radius:8px; overflow:hidden; }
-  .card-title { padding:8px 12px; border-bottom:1px solid var(--border); font-size:12px; font-weight:600; color:var(--fg2); text-transform:uppercase; letter-spacing:.5px; display:flex; justify-content:space-between; align-items:center; }
-  .card-body { padding:12px; }
-  .gauge-row { display:flex; gap:16px; align-items:center; margin-bottom:8px; }
-  .gauge-label { width:60px; color:var(--fg2); font-size:12px; }
-  .gauge-bar { flex:1; height:18px; background:var(--bg3); border-radius:3px; overflow:hidden; position:relative; }
+  .card { background:var(--bg2); border:1px solid var(--border); border-radius:6px; overflow:hidden; }
+  .card-title { padding:6px 10px; border-bottom:1px solid var(--border); font-size:11px; font-weight:600; color:var(--fg2); text-transform:uppercase; letter-spacing:.5px; display:flex; justify-content:space-between; align-items:center; }
+  .card-body { padding:8px; }
+  .gauge-row { display:flex; gap:12px; align-items:center; margin-bottom:6px; }
+  .gauge-label { width:55px; color:var(--fg2); font-size:11px; }
+  .gauge-bar { flex:1; height:16px; background:var(--bg3); border-radius:3px; overflow:hidden; position:relative; }
   .gauge-fill { height:100%; border-radius:3px; transition:width .5s ease; }
-  .gauge-text { position:absolute; right:6px; top:1px; font-size:11px; color:var(--fg); }
-  table { width:100%; border-collapse:collapse; font-size:12px; }
-  th { text-align:left; padding:6px 8px; color:var(--fg2); border-bottom:1px solid var(--border); font-weight:600; cursor:pointer; user-select:none; position:sticky; top:0; background:var(--bg2); z-index:1; }
+  .gauge-text { position:absolute; right:4px; top:1px; font-size:10px; color:var(--fg); }
+  table { width:100%; border-collapse:collapse; font-size:11px; }
+  th { text-align:left; padding:4px 6px; color:var(--fg2); border-bottom:1px solid var(--border); font-weight:600; cursor:pointer; user-select:none; position:sticky; top:0; background:var(--bg2); z-index:1; font-size:10px; }
   th:hover { color:var(--accent); }
-  td { padding:5px 8px; border-bottom:1px solid var(--bg3); }
+  td { padding:3px 6px; border-bottom:1px solid var(--bg3); }
   tr:hover td { background:var(--bg3); }
-  .scroll-body { max-height:350px; overflow-y:auto; }
-  .chart-container { width:100%; height:180px; }
+  .scroll-body { max-height:250px; overflow-y:auto; }
+  .chart-container { width:100%; height:120px; }
   .pct-green { color:var(--green); } .pct-orange { color:var(--orange); } .pct-red { color:var(--red); }
-  .tag { display:inline-block; padding:1px 6px; border-radius:3px; font-size:11px; }
+  .tag { display:inline-block; padding:1px 4px; border-radius:3px; font-size:10px; }
   .tag-running { background:#0d351b; color:var(--green); }
   .tag-exited { background:#3d1416; color:var(--red); }
   .tree-indent { color:var(--fg2); margin-right:4px; }
   .fs-name { color:var(--cyan); }
-  .loading { text-align:center; padding:40px; color:var(--fg2); }
-  .kill-btn { background:var(--bg3); border:1px solid var(--red); color:var(--red); padding:2px 8px;
-    border-radius:3px; font-size:11px; cursor:pointer; font-family:inherit; }
+  .loading { text-align:center; padding:20px; color:var(--fg2); font-size:12px; }
+  .kill-btn { background:var(--bg3); border:1px solid var(--red); color:var(--red); padding:1px 6px;
+    border-radius:3px; font-size:10px; cursor:pointer; font-family:inherit; }
   .kill-btn:hover { background:var(--red); color:#fff; }
   .modal-overlay { position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,.6); display:flex; align-items:center; justify-content:center; z-index:100; }
-  .modal { background:var(--bg2); border:1px solid var(--border); border-radius:8px; padding:20px; min-width:340px; text-align:center; }
-  .modal h3 { margin-bottom:12px; color:var(--red); }
-  .modal p { margin-bottom:16px; color:var(--fg); font-size:13px; }
+  .modal { background:var(--bg2); border:1px solid var(--border); border-radius:8px; padding:20px; min-width:380px; text-align:center; }
+  .modal h3 { margin-bottom:12px; font-size:14px; }
+  .modal p { margin-bottom:12px; color:var(--fg); font-size:12px; }
   .modal .btn-row { display:flex; gap:8px; justify-content:center; }
   .modal button { padding:6px 16px; border-radius:4px; border:1px solid var(--border); cursor:pointer; font-family:inherit; font-size:12px; }
   .modal .btn-kill { background:var(--red); color:#fff; border-color:var(--red); }
   .modal .btn-cancel { background:var(--bg3); color:var(--fg); }
+  .modal .btn-ok { background:var(--accent); color:#fff; border-color:var(--accent); }
+  .modal input[type=text] { width:100%; background:var(--bg3); border:1px solid var(--border); color:var(--fg); padding:8px 12px; border-radius:4px; font-family:inherit; font-size:13px; margin-bottom:12px; }
+  .modal input[type=text]:focus { outline:none; border-color:var(--accent); }
+  .hint-bar { font-size:10px; color:var(--fg2); padding:4px 8px; }
+  .hint-bar span { color:var(--orange); margin-right:4px; }
 </style>
 </head>
 <body>
 <div id="app">
-  <div class="header">
-    <div style="display:flex;align-items:center;gap:12px">
+  <!-- Global header -->
+  <div class="app-header">
+    <div style="display:flex;align-items:center;gap:10px">
       <h1>Glances</h1>
-      <span class="info" v-if="data">{{ data.system.hostname }} &mdash; {{ data.system.os_name }} {{ data.system.kernel_version }}</span>
+      <span style="color:var(--fg2);font-size:11px">Multi-server monitor</span>
     </div>
     <div class="controls">
-      <span class="dot" :style="{background: connected ? '#3fb950' : '#f85149'}"></span>
-      <select v-model.number="refreshInterval" @change="restartPolling">
+      <button @click="splitPane(null,'h')" title="Split horizontally">Split &#x2194;</button>
+      <button @click="splitPane(null,'v')" title="Split vertically">Split &#x2195;</button>
+      <select v-model.number="globalRefresh" @change="updateAllRefresh">
         <option :value="1000">1s</option>
         <option :value="2000">2s</option>
         <option :value="5000">5s</option>
@@ -83,359 +100,320 @@
     </div>
   </div>
 
-  <!-- Kill confirmation modal -->
-  <div v-if="killTarget" class="modal-overlay" @click.self="killTarget=null">
+  <!-- Endpoint input modal -->
+  <div v-if="endpointModal" class="modal-overlay" @click.self="cancelEndpoint">
     <div class="modal">
-      <h3>Kill Process</h3>
-      <p>Send SIGTERM to <strong>{{ killTarget.name }}</strong> (PID {{ killTarget.pid }}, port {{ killTarget.port }})?</p>
+      <h3 style="color:var(--accent)">Connect to Server</h3>
+      <p>Enter the Glances API endpoint for the new pane:</p>
+      <input type="text" v-model="endpointInput" @keyup.enter="confirmEndpoint" placeholder="http://host:61208" autofocus>
+      <p style="font-size:11px;color:var(--fg2)">Examples: http://192.168.1.10:61208, http://server2:61208</p>
       <div class="btn-row">
-        <button class="btn-cancel" @click="killTarget=null">Cancel</button>
-        <button class="btn-kill" @click="executeKill(killTarget.pid, 'TERM')">SIGTERM</button>
-        <button class="btn-kill" @click="executeKill(killTarget.pid, 'KILL')">SIGKILL</button>
+        <button class="btn-cancel" @click="cancelEndpoint">Cancel</button>
+        <button class="btn-ok" @click="confirmEndpoint">Connect</button>
       </div>
-      <p v-if="killResult" style="margin-top:12px;font-size:11px" :style="{color: killResult.ok ? 'var(--green)' : 'var(--red)'}">{{ killResult.msg }}</p>
     </div>
   </div>
 
-  <div v-if="!data" class="loading">Connecting to Glances API&hellip;</div>
-
-  <div v-else class="dashboard">
-    <!-- System info strip -->
-    <div class="card">
-      <div class="card-body" style="display:flex;gap:20px;align-items:center;flex-wrap:wrap;padding:8px 16px;">
-        <span style="color:var(--fg2)">Uptime <strong style="color:var(--fg)">{{ formatUptime(data.system.uptime) }}</strong></span>
-        <span style="color:var(--fg2)">Load <strong style="color:var(--fg)">{{ data.system.load_avg[0].toFixed(2) }} {{ data.system.load_avg[1].toFixed(2) }} {{ data.system.load_avg[2].toFixed(2) }}</strong></span>
-        <span style="color:var(--fg2)">Processes <strong style="color:var(--fg)">{{ data.system.process_count }}</strong> ({{ data.system.thread_count }} threads)</span>
-        <span v-if="data.system.battery_pct != null" style="color:var(--fg2)">Battery <strong :style="{color: data.system.battery_pct > 20 ? 'var(--green)' : 'var(--red)'}">{{ data.system.battery_pct.toFixed(0) }}%</strong> {{ data.system.battery_state }}</span>
-        <span v-if="data.system.power && data.system.power.available" style="color:var(--fg2)">Power <strong style="color:var(--orange)">{{ data.system.power.total_power_w.toFixed(1) }}W</strong></span>
+  <!-- Kill confirmation modal -->
+  <div v-if="killTarget" class="modal-overlay" @click.self="killTarget=null">
+    <div class="modal">
+      <h3 style="color:var(--red)">Kill Process</h3>
+      <p>Send signal to <strong>{{ killTarget.name }}</strong> (PID {{ killTarget.pid }})?</p>
+      <div class="btn-row">
+        <button class="btn-cancel" @click="killTarget=null">Cancel</button>
+        <button class="btn-kill" @click="executeKill(killTarget, 'TERM')">SIGTERM</button>
+        <button class="btn-kill" @click="executeKill(killTarget, 'KILL')">SIGKILL</button>
       </div>
+      <p v-if="killResult" style="margin-top:8px;font-size:11px" :style="{color: killResult.ok ? 'var(--green)' : 'var(--red)'}">{{ killResult.msg }}</p>
     </div>
+  </div>
 
-    <!-- CPU + Memory + Temperatures & Power -->
-    <div class="row row-3" :class="{'row-2': !hasTempOrPower}">
-      <div class="card">
-        <div class="card-title">CPU<span>{{ data.system.cpu_count }} cores &mdash; {{ data.system.cpu_global.toFixed(1) }}%</span></div>
-        <div class="card-body">
-          <div class="gauge-row">
-            <span class="gauge-label">user</span>
-            <div class="gauge-bar"><div class="gauge-fill" :style="{width:data.system.cpu_breakdown.user+'%',background:'#58a6ff'}"></div><span class="gauge-text">{{ data.system.cpu_breakdown.user.toFixed(1) }}%</span></div>
+  <!-- Pane tree -->
+  <div class="split-container" :class="rootLayout === 'h' ? 'split-h' : 'split-v'" style="height:calc(100vh - 40px)">
+    <template v-for="(pane, idx) in panes" :key="pane.id">
+      <div class="pane">
+        <!-- Pane header bar -->
+        <div class="pane-bar">
+          <div class="pane-info">
+            <span class="dot" :style="{background: pane.connected ? '#3fb950' : '#f85149'}"></span>
+            <span class="hostname">{{ pane.data ? pane.data.system.hostname : 'connecting...' }}</span>
+            <span style="color:var(--fg2);font-size:10px;opacity:.6">{{ paneLabel(pane) }}</span>
           </div>
-          <div class="gauge-row">
-            <span class="gauge-label">system</span>
-            <div class="gauge-bar"><div class="gauge-fill" :style="{width:data.system.cpu_breakdown.system+'%',background:'#f0883e'}"></div><span class="gauge-text">{{ data.system.cpu_breakdown.system.toFixed(1) }}%</span></div>
+          <div class="pane-controls">
+            <select v-model="pane.displayMode" style="background:var(--bg3);border:1px solid var(--border);color:var(--fg);padding:1px 4px;border-radius:3px;font-size:10px;font-family:inherit;">
+              <option value="minimal">Minimal</option>
+              <option value="normal">Normal</option>
+              <option value="full">Full</option>
+            </select>
+            <button @click="splitPane(pane.id,'h')" title="Split horizontal">&#x2194;</button>
+            <button @click="splitPane(pane.id,'v')" title="Split vertical">&#x2195;</button>
+            <button v-if="panes.length > 1" @click="removePane(pane.id)" title="Close pane" style="color:var(--red)">&#x2715;</button>
           </div>
-          <div class="gauge-row">
-            <span class="gauge-label">idle</span>
-            <div class="gauge-bar"><div class="gauge-fill" :style="{width:data.system.cpu_breakdown.idle+'%',background:'#3fb950'}"></div><span class="gauge-text">{{ data.system.cpu_breakdown.idle.toFixed(1) }}%</span></div>
-          </div>
-          <div ref="cpuChart" class="chart-container"></div>
         </div>
-      </div>
-      <div class="card">
-        <div class="card-title">Memory<span>{{ memPct }}%</span></div>
-        <div class="card-body">
-          <div class="gauge-row">
-            <span class="gauge-label">RAM</span>
-            <div class="gauge-bar"><div class="gauge-fill" :style="{width:memPct+'%',background:pctColor(memPct)}"></div><span class="gauge-text">{{ formatBytes(data.system.memory.used) }} / {{ formatBytes(data.system.memory.total) }}</span></div>
+        <!-- Pane dashboard content -->
+        <div class="pane-content" v-if="pane.data">
+          <!-- Info strip -->
+          <div class="card">
+            <div class="card-body" style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;padding:6px 12px;font-size:11px;">
+              <span style="color:var(--fg2)">Uptime <strong style="color:var(--fg)">{{ formatUptime(pane.data.system.uptime) }}</strong></span>
+              <span style="color:var(--fg2)">Load <strong style="color:var(--fg)">{{ pane.data.system.load_avg[0].toFixed(2) }}</strong></span>
+              <span style="color:var(--fg2)">Procs <strong style="color:var(--fg)">{{ pane.data.system.process_count }}</strong></span>
+              <span v-if="pane.data.system.power && pane.data.system.power.available" style="color:var(--fg2)">Power <strong style="color:var(--orange)">{{ pane.data.system.power.total_power_w.toFixed(1) }}W</strong></span>
+              <span v-if="pane.data.system.battery_pct != null" style="color:var(--fg2)">Bat <strong :style="{color: pane.data.system.battery_pct > 20 ? 'var(--green)' : 'var(--red)'}">{{ pane.data.system.battery_pct.toFixed(0) }}%</strong></span>
+            </div>
           </div>
-          <div class="gauge-row">
-            <span class="gauge-label">Swap</span>
-            <div class="gauge-bar"><div class="gauge-fill" :style="{width:swapPct+'%',background:pctColor(swapPct)}"></div><span class="gauge-text">{{ formatBytes(data.system.memory.swap_used) }} / {{ formatBytes(data.system.memory.swap_total) }}</span></div>
-          </div>
-          <div ref="memChart" class="chart-container"></div>
-        </div>
-      </div>
-      <!-- Temperatures & Power -->
-      <div class="card" v-if="hasTempOrPower">
-        <div class="card-title">Sensors<span v-if="data.system.temperatures && data.system.temperatures.length">{{ maxTemp(data.system.temperatures).toFixed(0) }}&deg;C peak</span></div>
-        <div class="card-body scroll-body" style="max-height:280px;">
-          <!-- Power domains -->
-          <template v-if="data.system.power && data.system.power.available">
-            <div v-for="d in data.system.power.domains" :key="d.name" class="gauge-row" style="margin-bottom:4px">
-              <span class="gauge-label" style="width:100px;font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" :title="d.name">&#9889; {{ d.name }}</span>
-              <div class="gauge-bar" style="height:16px">
-                <div class="gauge-fill" :style="{width: d.max_power_w ? Math.min(d.power_w/d.max_power_w*100,100)+'%' : '0%', background: 'var(--orange)'}"></div>
-                <span class="gauge-text" style="font-size:10px">{{ d.power_w.toFixed(1) }}W{{ d.max_power_w ? ' / '+d.max_power_w.toFixed(0)+'W' : '' }}</span>
+          <!-- CPU + Memory -->
+          <div class="row row-2">
+            <div class="card">
+              <div class="card-title">CPU<span>{{ pane.data.system.cpu_count }}c &mdash; {{ pane.data.system.cpu_global.toFixed(1) }}%</span></div>
+              <div class="card-body">
+                <div class="gauge-row"><span class="gauge-label">user</span><div class="gauge-bar"><div class="gauge-fill" :style="{width:pane.data.system.cpu_breakdown.user+'%',background:'#58a6ff'}"></div><span class="gauge-text">{{ pane.data.system.cpu_breakdown.user.toFixed(1) }}%</span></div></div>
+                <div class="gauge-row"><span class="gauge-label">system</span><div class="gauge-bar"><div class="gauge-fill" :style="{width:pane.data.system.cpu_breakdown.system+'%',background:'#f0883e'}"></div><span class="gauge-text">{{ pane.data.system.cpu_breakdown.system.toFixed(1) }}%</span></div></div>
+                <div :ref="el => pane._cpuEl = el" class="chart-container"></div>
               </div>
             </div>
-            <div v-if="data.system.temperatures && data.system.temperatures.length" style="border-top:1px solid var(--border);margin:6px 0"></div>
-          </template>
-          <!-- Temperature sensors -->
-          <div v-for="[name,temp] in sortedTemps" :key="name" class="gauge-row" style="margin-bottom:4px">
-            <span class="gauge-label" style="width:100px;font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" :title="name">{{ name }}</span>
-            <div class="gauge-bar" style="height:16px">
-              <div class="gauge-fill" :style="{width: Math.min(temp/105*100,100)+'%', background: tempGradient(temp)}"></div>
-              <span class="gauge-text" style="font-size:10px" :style="{color: temp >= 80 ? '#fff' : 'var(--fg)'}">{{ temp.toFixed(0) }}&deg;C</span>
+            <div class="card">
+              <div class="card-title">Memory<span>{{ memPct(pane) }}%</span></div>
+              <div class="card-body">
+                <div class="gauge-row"><span class="gauge-label">RAM</span><div class="gauge-bar"><div class="gauge-fill" :style="{width:memPct(pane)+'%',background:pctColor(memPct(pane))}"></div><span class="gauge-text">{{ formatBytes(pane.data.system.memory.used) }} / {{ formatBytes(pane.data.system.memory.total) }}</span></div></div>
+                <div class="gauge-row"><span class="gauge-label">Swap</span><div class="gauge-bar"><div class="gauge-fill" :style="{width:swapPct(pane)+'%',background:pctColor(swapPct(pane))}"></div><span class="gauge-text">{{ formatBytes(pane.data.system.memory.swap_used) }} / {{ formatBytes(pane.data.system.memory.swap_total) }}</span></div></div>
+                <div :ref="el => pane._memEl = el" class="chart-container"></div>
+              </div>
             </div>
           </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Per-core CPU overlay chart -->
-    <div class="card" v-if="data.system.cpus.length > 1">
-      <div class="card-title">Per-Core CPU</div>
-      <div class="card-body">
-        <div ref="perCoreChart" style="width:100%;height:200px;"></div>
-      </div>
-    </div>
-
-    <!-- Network + Disk I/O -->
-    <div class="row row-2">
-      <div class="card">
-        <div class="card-title">Network</div>
-        <div class="card-body scroll-body">
-          <table>
-            <thead><tr>
-              <th @click="doSort('net','interface')">Interface{{ sortIcon('net','interface') }}</th>
-              <th @click="doSort('net','rx_rate')">Rx Rate{{ sortIcon('net','rx_rate') }}</th>
-              <th @click="doSort('net','tx_rate')">Tx Rate{{ sortIcon('net','tx_rate') }}</th>
-              <th @click="doSort('net','rx_bytes')">Rx Total{{ sortIcon('net','rx_bytes') }}</th>
-              <th @click="doSort('net','tx_bytes')">Tx Total{{ sortIcon('net','tx_bytes') }}</th>
-            </tr></thead>
-            <tbody>
-              <tr v-for="net in sortedNets" :key="net.interface">
-                <td class="fs-name">{{ net.interface }}</td>
-                <td>{{ formatRate(net.rx_rate) }}</td>
-                <td>{{ formatRate(net.tx_rate) }}</td>
-                <td>{{ formatBytes(net.rx_bytes) }}</td>
-                <td>{{ formatBytes(net.tx_bytes) }}</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
-      <div class="card">
-        <div class="card-title">Filesystems</div>
-        <div class="card-body scroll-body">
-          <table>
-            <thead><tr>
-              <th @click="doSort('disk','name')">Filesystem{{ sortIcon('disk','name') }}</th>
-              <th @click="doSort('disk','total')">Size{{ sortIcon('disk','total') }}</th>
-              <th @click="doSort('disk','used')">Used{{ sortIcon('disk','used') }}</th>
-              <th @click="doSort('disk','_avail')">Avail{{ sortIcon('disk','_avail') }}</th>
-              <th @click="doSort('disk','_pct')">Use%{{ sortIcon('disk','_pct') }}</th>
-              <th>Mounted on</th>
-            </tr></thead>
-            <tbody>
-              <template v-for="disk in sortedDisks" :key="disk.name">
-                <tr>
-                  <td class="fs-name">{{ disk.name }}</td>
-                  <td>{{ formatBytes(disk.total) }}</td>
-                  <td>{{ formatBytes(disk.used) }}</td>
-                  <td>{{ formatBytes(disk.total - disk.used) }}</td>
-                  <td :class="pctClass(diskPct(disk))">{{ diskPct(disk) }}%</td>
-                  <td>{{ disk.mount_points[0] }}</td>
-                </tr>
-                <tr v-for="(mp,j) in disk.mount_points.slice(1)" :key="disk.name+'-'+j">
-                  <td colspan="5"></td>
-                  <td><span class="tree-indent">{{ j === disk.mount_points.length - 2 ? '\u2514\u2500' : '\u251C\u2500' }}</span>{{ mp }}</td>
-                </tr>
+          <!-- Temps & Power (if available) — normal/full -->
+          <div class="card" v-if="hasSensors(pane) && pane.displayMode !== 'minimal'">
+            <div class="card-title">Sensors</div>
+            <div class="card-body scroll-body" style="max-height:150px;">
+              <template v-if="pane.data.system.power && pane.data.system.power.available">
+                <div v-for="d in pane.data.system.power.domains" :key="d.name" class="gauge-row" style="margin-bottom:3px">
+                  <span class="gauge-label" style="width:80px;font-size:10px" :title="d.name">&#9889; {{ d.name }}</span>
+                  <div class="gauge-bar" style="height:14px"><div class="gauge-fill" :style="{width: d.max_power_w ? Math.min(d.power_w/d.max_power_w*100,100)+'%' : '0%', background:'var(--orange)'}"></div><span class="gauge-text" style="font-size:9px">{{ d.power_w.toFixed(1) }}W</span></div>
+                </div>
               </template>
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-
-    <!-- GPU -->
-    <div v-if="data.gpu && data.gpu.gpus.length" class="card">
-      <div class="card-title">GPU<span>{{ data.gpu.driver_version }}</span></div>
-      <div class="card-body">
-        <div v-for="gpu in data.gpu.gpus" :key="gpu.index" style="margin-bottom:12px">
-          <div style="margin-bottom:6px;font-weight:600;color:var(--purple)">[{{ gpu.index }}] {{ gpu.name }}</div>
-          <div class="gauge-row">
-            <span class="gauge-label">GPU</span>
-            <div class="gauge-bar"><div class="gauge-fill" :style="{width:gpu.gpu_utilization+'%',background:pctColor(gpu.gpu_utilization)}"></div><span class="gauge-text">{{ gpu.gpu_utilization }}%</span></div>
+              <div v-for="[name,temp] in sortTemps(pane)" :key="name" class="gauge-row" style="margin-bottom:3px">
+                <span class="gauge-label" style="width:80px;font-size:10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" :title="name">{{ name }}</span>
+                <div class="gauge-bar" style="height:14px"><div class="gauge-fill" :style="{width:Math.min(temp/105*100,100)+'%',background:tempGrad(temp)}"></div><span class="gauge-text" style="font-size:9px">{{ temp.toFixed(0) }}&deg;C</span></div>
+              </div>
+            </div>
           </div>
-          <div class="gauge-row">
-            <span class="gauge-label">VRAM</span>
-            <div class="gauge-bar"><div class="gauge-fill" :style="{width:(gpu.memory_used/gpu.memory_total*100)+'%',background:pctColor(gpu.memory_used/gpu.memory_total*100)}"></div><span class="gauge-text">{{ formatBytes(gpu.memory_used) }} / {{ formatBytes(gpu.memory_total) }}</span></div>
+          <!-- Network + Disks — normal/full -->
+          <div class="row row-2" v-if="pane.displayMode !== 'minimal'">
+            <div class="card">
+              <div class="card-title">Network</div>
+              <div class="card-body scroll-body" style="max-height:150px;">
+                <table><thead><tr>
+                  <th @click="pSort(pane,'net','interface')">Iface{{ sI(pane,'net','interface') }}</th>
+                  <th @click="pSort(pane,'net','rx_rate')">Rx{{ sI(pane,'net','rx_rate') }}</th>
+                  <th @click="pSort(pane,'net','tx_rate')">Tx{{ sI(pane,'net','tx_rate') }}</th>
+                </tr></thead><tbody>
+                  <tr v-for="n in pSorted(pane,'net',pane.data.system.networks)" :key="n.interface">
+                    <td class="fs-name">{{ n.interface }}</td><td>{{ formatRate(n.rx_rate) }}</td><td>{{ formatRate(n.tx_rate) }}</td>
+                  </tr>
+                </tbody></table>
+              </div>
+            </div>
+            <div class="card">
+              <div class="card-title">Filesystems</div>
+              <div class="card-body scroll-body" style="max-height:150px;">
+                <table><thead><tr>
+                  <th @click="pSort(pane,'disk','name')">FS{{ sI(pane,'disk','name') }}</th>
+                  <th @click="pSort(pane,'disk','used')">Used{{ sI(pane,'disk','used') }}</th>
+                  <th @click="pSort(pane,'disk','_pct')">Use%{{ sI(pane,'disk','_pct') }}</th>
+                  <th>Mount</th>
+                </tr></thead><tbody>
+                  <template v-for="d in pSorted(pane,'disk',pane.data.system.disks.filter(x=>x.total>0),(x,c)=>c==='_pct'?(x.total?x.used/x.total:0):x[c])" :key="d.name">
+                    <tr><td class="fs-name">{{ d.name }}</td><td>{{ formatBytes(d.used) }}/{{ formatBytes(d.total) }}</td><td :class="pctClass(diskPct(d))">{{ diskPct(d) }}%</td><td>{{ d.mount_points[0] }}</td></tr>
+                  </template>
+                </tbody></table>
+              </div>
+            </div>
           </div>
-          <div style="display:flex;gap:12px;margin-top:4px;font-size:11px;color:var(--fg2)">
-            <span>{{ gpu.temperature }}&deg;C</span>
-            <span>Fan {{ gpu.fan_speed }}%</span>
-            <span>{{ gpu.power_usage }}W / {{ gpu.power_limit }}W</span>
-            <span>{{ gpu.sm_clock }}MHz</span>
-            <span>P{{ gpu.pstate }}</span>
+          <!-- GPU — full only -->
+          <div class="card" v-if="pane.data.gpu && pane.data.gpu.gpus.length && pane.displayMode === 'full'">
+            <div class="card-title">GPU<span>{{ pane.data.gpu.driver_version }}</span></div>
+            <div class="card-body">
+              <div v-for="gpu in pane.data.gpu.gpus" :key="gpu.index" style="margin-bottom:6px">
+                <div style="font-size:11px;font-weight:600;color:var(--purple);margin-bottom:4px">[{{ gpu.index }}] {{ gpu.name }} &mdash; {{ gpu.temperature }}&deg;C {{ gpu.power_usage }}W</div>
+                <div class="gauge-row" style="margin-bottom:3px"><span class="gauge-label" style="width:40px">GPU</span><div class="gauge-bar" style="height:14px"><div class="gauge-fill" :style="{width:gpu.gpu_utilization+'%',background:pctColor(gpu.gpu_utilization)}"></div><span class="gauge-text" style="font-size:9px">{{ gpu.gpu_utilization }}%</span></div></div>
+                <div class="gauge-row" style="margin-bottom:3px"><span class="gauge-label" style="width:40px">VRAM</span><div class="gauge-bar" style="height:14px"><div class="gauge-fill" :style="{width:(gpu.memory_used/gpu.memory_total*100)+'%',background:pctColor(gpu.memory_used/gpu.memory_total*100)}"></div><span class="gauge-text" style="font-size:9px">{{ formatBytes(gpu.memory_used) }}/{{ formatBytes(gpu.memory_total) }}</span></div></div>
+              </div>
+            </div>
+          </div>
+          <!-- Docker — full only -->
+          <div class="card" v-if="pane.data.docker && pane.data.docker.length && pane.displayMode === 'full'">
+            <div class="card-title">Docker<span>{{ pane.data.docker.length }}</span></div>
+            <div class="card-body scroll-body" style="max-height:120px;">
+              <table><thead><tr><th>Name</th><th>Status</th><th>CPU%</th><th>Mem</th></tr></thead><tbody>
+                <tr v-for="c in pane.data.docker" :key="c.id"><td class="fs-name">{{ c.name }}</td><td><span class="tag" :class="c.state==='running'?'tag-running':'tag-exited'">{{ c.state }}</span></td><td>{{ (c.cpu_percent||0).toFixed(1) }}</td><td>{{ formatBytes(c.memory_used||0) }}</td></tr>
+              </tbody></table>
+            </div>
+          </div>
+          <!-- Ports — full only -->
+          <div class="card" v-if="pane.data.ports && pane.data.ports.length && pane.displayMode === 'full'">
+            <div class="card-title">Listening Ports<span>{{ pane.data.ports.length }}</span></div>
+            <div class="card-body scroll-body" style="max-height:150px;">
+              <table><thead><tr>
+                <th @click="pSort(pane,'port','port')">Port{{ sI(pane,'port','port') }}</th>
+                <th>Proto</th><th>PID</th>
+                <th @click="pSort(pane,'port','name')">Name{{ sI(pane,'port','name') }}</th>
+                <th></th>
+              </tr></thead><tbody>
+                <tr v-for="p in pSorted(pane,'port',pane.data.ports)" :key="p.pid+'-'+p.port">
+                  <td style="color:var(--orange);font-weight:700">{{ p.port }}</td>
+                  <td>{{ p.protocol }}</td><td>{{ p.pid }}</td><td class="fs-name">{{ p.name }}</td>
+                  <td><button class="kill-btn" @click="confirmKill(pane,p)">Kill</button></td>
+                </tr>
+              </tbody></table>
+            </div>
+          </div>
+          <!-- Processes — normal/full -->
+          <div class="card" v-if="pane.displayMode !== 'minimal'">
+            <div class="card-title">Processes<span><input v-model="pane.procFilter" placeholder="Filter..." style="background:var(--bg3);border:1px solid var(--border);color:var(--fg);padding:1px 6px;border-radius:3px;font-size:10px;width:120px;font-family:inherit;"></span></div>
+            <div class="card-body scroll-body" style="max-height:200px;">
+              <table><thead><tr>
+                <th @click="pSort(pane,'proc','pid')">PID{{ sI(pane,'proc','pid') }}</th>
+                <th @click="pSort(pane,'proc','name')">Name{{ sI(pane,'proc','name') }}</th>
+                <th @click="pSort(pane,'proc','cpu_usage')">CPU%{{ sI(pane,'proc','cpu_usage') }}</th>
+                <th @click="pSort(pane,'proc','memory_bytes')">Mem{{ sI(pane,'proc','memory_bytes') }}</th>
+                <th>User</th>
+              </tr></thead><tbody>
+                <tr v-for="p in filtProcs(pane)" :key="p.pid">
+                  <td>{{ p.pid }}</td><td>{{ p.name }}</td>
+                  <td :class="pctClass(p.cpu_usage)">{{ p.cpu_usage.toFixed(1) }}</td>
+                  <td>{{ formatBytes(p.memory_bytes) }}</td><td>{{ p.user }}</td>
+                </tr>
+              </tbody></table>
+            </div>
+          </div>
+          <!-- Hints — full only -->
+          <div class="hint-bar" v-if="pane.displayMode === 'full' && paneHints(pane).length">
+            <div v-for="h in paneHints(pane)" :key="h"><span>&#9432;</span>{{ h }}</div>
           </div>
         </div>
-        <table v-if="data.gpu.processes.length">
-          <thead><tr><th>PID</th><th>GPU</th><th>Name</th><th>User</th><th>VRAM</th><th>Type</th></tr></thead>
-          <tbody>
-            <tr v-for="p in data.gpu.processes" :key="p.pid">
-              <td>{{ p.pid }}</td><td>{{ p.gpu_index }}</td><td>{{ p.name }}</td><td>{{ p.user }}</td>
-              <td>{{ formatBytes(p.gpu_memory) }}</td><td>{{ p.process_type }}</td>
-            </tr>
-          </tbody>
-        </table>
+        <div v-else class="pane-content"><div class="loading">Connecting to {{ pane.endpoint }}...</div></div>
       </div>
-    </div>
-
-    <!-- Docker -->
-    <div v-if="data.docker.length" class="card">
-      <div class="card-title">Docker Containers<span>{{ data.docker.length }}</span></div>
-      <div class="card-body scroll-body">
-        <table>
-          <thead><tr>
-            <th @click="doSort('docker','name')">Name{{ sortIcon('docker','name') }}</th>
-            <th @click="doSort('docker','image')">Image{{ sortIcon('docker','image') }}</th>
-            <th @click="doSort('docker','state')">Status{{ sortIcon('docker','state') }}</th>
-            <th @click="doSort('docker','_cpu')">CPU%{{ sortIcon('docker','_cpu') }}</th>
-            <th @click="doSort('docker','_mem')">Memory{{ sortIcon('docker','_mem') }}</th>
-            <th>Net I/O</th>
-            <th>Ports</th>
-          </tr></thead>
-          <tbody>
-            <tr v-for="c in sortedDocker" :key="c.id">
-              <td class="fs-name">{{ c.name }}</td>
-              <td>{{ c.image }}</td>
-              <td><span class="tag" :class="c.state==='running'?'tag-running':'tag-exited'">{{ c.state }}</span></td>
-              <td>{{ (c.cpu_percent || c.cpu_pct || 0).toFixed(1) }}%</td>
-              <td>{{ formatBytes(c.memory_used || c.mem_usage || 0) }}</td>
-              <td>{{ formatBytes(c.net_rx) }} / {{ formatBytes(c.net_tx) }}</td>
-              <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis">{{ c.ports }}</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-    </div>
-
-    <!-- Listening Ports -->
-    <div v-if="data.ports && data.ports.length" class="card">
-      <div class="card-title">Listening Ports<span>{{ data.ports.length }}</span></div>
-      <div class="card-body scroll-body">
-        <table>
-          <thead>
-            <tr>
-              <th @click="doSort('port','port')">Port{{ sortIcon('port','port') }}</th>
-              <th @click="doSort('port','protocol')">Proto{{ sortIcon('port','protocol') }}</th>
-              <th @click="doSort('port','pid')">PID{{ sortIcon('port','pid') }}</th>
-              <th @click="doSort('port','name')">Name{{ sortIcon('port','name') }}</th>
-              <th @click="doSort('port','user')">User{{ sortIcon('port','user') }}</th>
-              <th @click="doSort('port','cpu_usage')">CPU%{{ sortIcon('port','cpu_usage') }}</th>
-              <th @click="doSort('port','memory_bytes')">MEM{{ sortIcon('port','memory_bytes') }}</th>
-              <th @click="doSort('port','bind_address')">Bind{{ sortIcon('port','bind_address') }}</th>
-              <th>Command</th>
-              <th style="width:50px"></th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="p in sortedPorts" :key="p.pid+'-'+p.port">
-              <td style="color:var(--orange);font-weight:700">{{ p.port }}</td>
-              <td :style="{color: p.protocol==='tcp6' ? 'var(--purple)' : 'var(--green)'}">{{ p.protocol }}</td>
-              <td>{{ p.pid }}</td>
-              <td class="fs-name">{{ p.name }}</td>
-              <td>{{ p.user }}</td>
-              <td :class="pctClass(p.cpu_usage)">{{ p.cpu_usage.toFixed(1) }}</td>
-              <td>{{ formatBytes(p.memory_bytes) }}</td>
-              <td style="color:var(--fg2)">{{ p.bind_address }}</td>
-              <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;color:var(--fg2)">{{ p.command }}</td>
-              <td>
-                <button class="kill-btn" @click="confirmKill(p)" title="Kill process">Kill</button>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-    </div>
-
-    <!-- Processes -->
-    <div class="card">
-      <div class="card-title">
-        Processes
-        <span>
-          <input v-model="procFilter" placeholder="Filter..." style="background:var(--bg3);border:1px solid var(--border);color:var(--fg);padding:2px 8px;border-radius:3px;font-size:11px;width:150px;">
-        </span>
-      </div>
-      <div class="card-body scroll-body" style="max-height:400px">
-        <table>
-          <thead>
-            <tr>
-              <th @click="doSort('proc','pid')">PID{{ sortIcon('proc','pid') }}</th>
-              <th @click="doSort('proc','name')">Name{{ sortIcon('proc','name') }}</th>
-              <th @click="doSort('proc','user')">User{{ sortIcon('proc','user') }}</th>
-              <th @click="doSort('proc','cpu_usage')">CPU%{{ sortIcon('proc','cpu_usage') }}</th>
-              <th @click="doSort('proc','memory_usage')">MEM%{{ sortIcon('proc','memory_usage') }}</th>
-              <th @click="doSort('proc','memory_bytes')">MEM{{ sortIcon('proc','memory_bytes') }}</th>
-              <th @click="doSort('proc','status')">Status{{ sortIcon('proc','status') }}</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="p in filteredProcs" :key="p.pid">
-              <td>{{ p.pid }}</td>
-              <td>{{ p.name }}</td>
-              <td>{{ p.user }}</td>
-              <td :class="pctClass(p.cpu_usage)">{{ p.cpu_usage.toFixed(1) }}</td>
-              <td :class="pctClass(p.memory_usage)">{{ p.memory_usage.toFixed(1) }}</td>
-              <td>{{ formatBytes(p.memory_bytes) }}</td>
-              <td>{{ p.status }}</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-    <!-- System hints footer -->
-    <div class="card" v-if="hints.length" style="border-color:var(--bg3)">
-      <div class="card-body" style="padding:8px 16px;">
-        <div v-for="h in hints" :key="h" style="font-size:11px;color:var(--fg2);margin:2px 0;">
-          <span style="color:var(--orange);margin-right:6px;">&#9432;</span>{{ h }}
-        </div>
-      </div>
-    </div>
-
+    </template>
   </div>
 </div>
 
 <script>
-const { createApp, ref, computed, watch, onMounted, onUnmounted, nextTick } = Vue;
+const { createApp, ref, reactive, onMounted, onUnmounted, nextTick } = Vue;
 
 createApp({
   setup() {
-    const data = ref(null);
-    const connected = ref(false);
-    const refreshInterval = ref(2000);
+    let paneIdCounter = 1;
     const darkMode = ref(true);
-    const procFilter = ref('');
+    const globalRefresh = ref(2000);
     const killTarget = ref(null);
     const killResult = ref(null);
-    const cpuChart = ref(null);
-    const memChart = ref(null);
-    const perCoreChart = ref(null);
+    const endpointModal = ref(null); // { splitDir, afterPaneId }
+    const endpointInput = ref('');
+    const rootLayout = ref('h');
 
-    // Generic sort state per table: { col, asc }
-    const sorts = ref({
-      net: { col: 'interface', asc: true },
-      disk: { col: 'name', asc: true },
-      docker: { col: 'name', asc: true },
-      port: { col: 'port', asc: true },
-      proc: { col: 'cpu_usage', asc: false },
-    });
-    function doSort(table, col) {
-      const s = sorts.value[table];
+    // Each pane: { id, endpoint, data, connected, procFilter, sorts, _cpuEl, _memEl, _charts, _history, _timer }
+    const panes = ref([]);
+
+    function createPane(endpoint) {
+      const id = paneIdCounter++;
+      const p = reactive({
+        id, endpoint,
+        data: null, connected: false, procFilter: '',
+        displayMode: 'full',
+        sorts: { net:{col:'interface',asc:true}, disk:{col:'name',asc:true}, docker:{col:'name',asc:true}, port:{col:'port',asc:true}, proc:{col:'cpu_usage',asc:false} },
+        _cpuEl: null, _memEl: null,
+        _cpuChart: null, _memChart: null,
+        _cpuHist: Array(60).fill(0), _ramHist: Array(60).fill(0), _swapHist: Array(60).fill(0),
+        _timer: null,
+      });
+      startPolling(p);
+      return p;
+    }
+
+    async function fetchPane(p) {
+      try {
+        const base = p.endpoint.replace(/\/+$/, '');
+        const resp = await fetch(base + '/api/v1/all');
+        p.data = await resp.json();
+        p.connected = true;
+        p._cpuHist.push(p.data.system.cpu_global); p._cpuHist.shift();
+        const mp = p.data.system.memory.total ? (p.data.system.memory.used / p.data.system.memory.total * 100) : 0;
+        p._ramHist.push(mp); p._ramHist.shift();
+        const sp = p.data.system.memory.swap_total ? (p.data.system.memory.swap_used / p.data.system.memory.swap_total * 100) : 0;
+        p._swapHist.push(sp); p._swapHist.shift();
+        await nextTick();
+        if (p._cpuEl && !p._cpuChart) p._cpuChart = echarts.init(p._cpuEl);
+        if (p._memEl && !p._memChart) p._memChart = echarts.init(p._memEl);
+        if (p._cpuChart) p._cpuChart.setOption(lineChart('#58a6ff', [...p._cpuHist]));
+        if (p._memChart) p._memChart.setOption(dualChart([...p._ramHist], [...p._swapHist]));
+      } catch(e) { p.connected = false; }
+    }
+
+    function startPolling(p) {
+      if (p._timer) clearInterval(p._timer);
+      fetchPane(p);
+      p._timer = setInterval(() => fetchPane(p), globalRefresh.value);
+    }
+
+    function stopPolling(p) { if (p._timer) { clearInterval(p._timer); p._timer = null; } }
+
+    function updateAllRefresh() {
+      panes.value.forEach(p => startPolling(p));
+    }
+
+    // Split operations
+    function splitPane(paneId, dir) {
+      rootLayout.value = dir;
+      endpointModal.value = { dir, afterPaneId: paneId };
+      endpointInput.value = window.location.origin;
+    }
+
+    function confirmEndpoint() {
+      if (!endpointInput.value.trim()) return;
+      const url = endpointInput.value.trim();
+      const p = createPane(url);
+      panes.value.push(p);
+      if (endpointModal.value && endpointModal.value.dir) {
+        rootLayout.value = endpointModal.value.dir;
+      }
+      // Auto-adjust display modes based on pane count
+      autoDisplayModes();
+      endpointModal.value = null;
+      endpointInput.value = '';
+    }
+
+    function cancelEndpoint() { endpointModal.value = null; }
+
+    function autoDisplayModes() {
+      const n = panes.value.length;
+      const mode = n >= 4 ? 'minimal' : n >= 2 ? 'normal' : 'full';
+      panes.value.forEach(p => { p.displayMode = mode; });
+    }
+
+    function removePane(id) {
+      const idx = panes.value.findIndex(p => p.id === id);
+      if (idx >= 0) {
+        stopPolling(panes.value[idx]);
+        if (panes.value[idx]._cpuChart) panes.value[idx]._cpuChart.dispose();
+        if (panes.value[idx]._memChart) panes.value[idx]._memChart.dispose();
+        panes.value.splice(idx, 1);
+      }
+      if (panes.value.length <= 1) rootLayout.value = 'h';
+      autoDisplayModes();
+    }
+
+    // Per-pane sort
+    function pSort(pane, table, col) {
+      const s = pane.sorts[table];
       if (s.col === col) s.asc = !s.asc;
       else { s.col = col; s.asc = table === 'proc' ? false : true; }
     }
-    function sortIcon(table, col) {
-      const s = sorts.value[table];
+    function sI(pane, table, col) {
+      const s = pane.sorts[table];
       return s.col === col ? (s.asc ? ' \u25B2' : ' \u25BC') : '';
     }
-    let cpuChartInst = null, memChartInst = null, perCoreChartInst = null;
-    let cpuHistory = Array(60).fill(0);
-    let memHistory = Array(60).fill(0);
-    let ramHistory = Array(60).fill(0);
-    let swapHistory = Array(60).fill(0);
-    let coreHistories = [];
-    let timer = null;
-
-    const memPct = computed(() => data.value ? ((data.value.system.memory.used / data.value.system.memory.total) * 100).toFixed(1) : '0');
-    const swapPct = computed(() => {
-      if (!data.value || !data.value.system.memory.swap_total) return '0';
-      return ((data.value.system.memory.swap_used / data.value.system.memory.swap_total) * 100).toFixed(1);
-    });
-
-    // Generic sorter: handles virtual columns prefixed with _
-    function genericSort(arr, table, getVal) {
-      const s = sorts.value[table];
+    function pSorted(pane, table, arr, getVal) {
+      const s = pane.sorts[table];
       const sorted = [...arr];
       sorted.sort((a, b) => {
         let va = getVal ? getVal(a, s.col) : a[s.col];
@@ -448,202 +426,92 @@ createApp({
       });
       return sorted;
     }
-
-    const sortedNets = computed(() => {
-      if (!data.value) return [];
-      return genericSort(data.value.system.networks, 'net');
-    });
-
-    const sortedDisks = computed(() => {
-      if (!data.value) return [];
-      return genericSort(data.value.system.disks.filter(d => d.total > 0), 'disk', (d, col) => {
-        if (col === '_avail') return d.total - d.used;
-        if (col === '_pct') return d.total ? d.used / d.total : 0;
-        return d[col];
-      });
-    });
-
-    const sortedDocker = computed(() => {
-      if (!data.value) return [];
-      return genericSort(data.value.docker, 'docker', (c, col) => {
-        if (col === '_cpu') return c.cpu_percent || c.cpu_pct || 0;
-        if (col === '_mem') return c.memory_used || c.mem_usage || 0;
-        return c[col];
-      });
-    });
-
-    const sortedPorts = computed(() => {
-      if (!data.value || !data.value.ports) return [];
-      return genericSort(data.value.ports, 'port');
-    });
-
-    const filteredProcs = computed(() => {
-      if (!data.value) return [];
-      let procs = [...data.value.system.processes];
-      if (procFilter.value) {
-        const f = procFilter.value.toLowerCase();
+    function filtProcs(pane) {
+      if (!pane.data) return [];
+      let procs = [...pane.data.system.processes];
+      if (pane.procFilter) {
+        const f = pane.procFilter.toLowerCase();
         procs = procs.filter(p => p.name.toLowerCase().includes(f) || p.user.toLowerCase().includes(f) || String(p.pid).includes(f));
       }
-      return genericSort(procs, 'proc').slice(0, 100);
-    });
+      return pSorted(pane, 'proc', procs).slice(0, 80);
+    }
 
-    function confirmKill(p) { killTarget.value = p; killResult.value = null; }
-
-    async function executeKill(pid, signal) {
+    // Kill
+    function confirmKill(pane, proc) { killTarget.value = { ...proc, _endpoint: pane.endpoint }; killResult.value = null; }
+    async function executeKill(target, signal) {
       try {
-        const resp = await fetch('/api/v1/kill', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ pid, signal })
-        });
-        const result = await resp.json();
-        killResult.value = { ok: result.ok, msg: result.message };
-        if (result.ok) setTimeout(() => { killTarget.value = null; killResult.value = null; }, 1500);
-      } catch(e) { killResult.value = { ok: false, msg: 'Request failed: ' + e.message }; }
+        const base = target._endpoint.replace(/\/+$/, '');
+        const resp = await fetch(base + '/api/v1/kill', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({pid:target.pid, signal}) });
+        const r = await resp.json();
+        killResult.value = { ok:r.ok, msg:r.message };
+        if (r.ok) setTimeout(() => { killTarget.value = null; killResult.value = null; }, 1500);
+      } catch(e) { killResult.value = { ok:false, msg:'Failed: '+e.message }; }
     }
 
-    function formatBytes(b) {
-      if (b == null || b === 0) return '0 B';
-      const u = ['B','KiB','MiB','GiB','TiB'];
-      const i = Math.min(Math.floor(Math.log(b)/Math.log(1024)), u.length-1);
-      return (b/Math.pow(1024,i)).toFixed(i>0?1:0)+' '+u[i];
-    }
-    function formatRate(r) {
-      if (!r) return '0 B/s';
-      return formatBytes(r) + '/s';
-    }
-    function formatUptime(s) {
-      const d = Math.floor(s/86400), h = Math.floor((s%86400)/3600), m = Math.floor((s%3600)/60);
-      return d > 0 ? `${d}d ${h}h` : h > 0 ? `${h}h ${m}m` : `${m}m`;
-    }
-    function pctColor(v) { return v >= 90 ? '#f85149' : v >= 75 ? '#d29922' : '#3fb950'; }
-    function pctClass(v) { return v >= 90 ? 'pct-red' : v >= 75 ? 'pct-orange' : 'pct-green'; }
-    function diskPct(d) { return d.total ? ((d.used / d.total) * 100).toFixed(0) : '0'; }
-    function tempGradient(t) {
-      if (t >= 85) return '#f85149';
-      if (t >= 70) return '#d29922';
-      if (t >= 50) return '#58a6ff';
-      return '#3fb950';
-    }
-    function maxTemp(temps) { return temps.reduce((m, [,t]) => Math.max(m, t), 0); }
-    const hasTempOrPower = computed(() => {
-      if (!data.value) return false;
-      const hasTemp = data.value.system.temperatures && data.value.system.temperatures.length > 0;
-      const hasPower = data.value.system.power && data.value.system.power.available;
-      return hasTemp || hasPower;
-    });
-
-    const hints = computed(() => {
-      if (!data.value) return [];
+    // Helpers
+    function formatBytes(b) { if (b==null||b===0) return '0 B'; const u=['B','KiB','MiB','GiB','TiB']; const i=Math.min(Math.floor(Math.log(b)/Math.log(1024)),u.length-1); return (b/Math.pow(1024,i)).toFixed(i>0?1:0)+' '+u[i]; }
+    function formatRate(r) { return r ? formatBytes(r)+'/s' : '0 B/s'; }
+    function formatUptime(s) { const d=Math.floor(s/86400),h=Math.floor((s%86400)/3600),m=Math.floor((s%3600)/60); return d>0?`${d}d ${h}h`:h>0?`${h}h ${m}m`:`${m}m`; }
+    function pctColor(v) { return v>=90?'#f85149':v>=75?'#d29922':'#3fb950'; }
+    function pctClass(v) { return v>=90?'pct-red':v>=75?'pct-orange':'pct-green'; }
+    function diskPct(d) { return d.total?((d.used/d.total)*100).toFixed(0):'0'; }
+    function tempGrad(t) { return t>=85?'#f85149':t>=70?'#d29922':t>=50?'#58a6ff':'#3fb950'; }
+    function memPct(pane) { return pane.data ? ((pane.data.system.memory.used/pane.data.system.memory.total)*100).toFixed(1) : '0'; }
+    function swapPct(pane) { return pane.data && pane.data.system.memory.swap_total ? ((pane.data.system.memory.swap_used/pane.data.system.memory.swap_total)*100).toFixed(1) : '0'; }
+    function hasSensors(pane) { return (pane.data.system.temperatures && pane.data.system.temperatures.length) || (pane.data.system.power && pane.data.system.power.available); }
+    function sortTemps(pane) { return pane.data && pane.data.system.temperatures ? [...pane.data.system.temperatures].sort((a,b)=>b[1]-a[1]) : []; }
+    function paneLabel(pane) { try { return new URL(pane.endpoint).host; } catch { return pane.endpoint; } }
+    function paneHints(pane) {
+      if (!pane.data) return [];
       const h = [];
-      if (!data.value.system.power || !data.value.system.power.available) {
-        h.push('Power monitoring: enable Intel RAPL with "sudo chmod a+r /sys/class/powercap/intel-rapl:*/energy_uj /sys/class/powercap/intel-rapl:*:*/energy_uj" (Linux x86 only). For ARM, hwmon INA sensors may be available.');
-      }
-      if (!data.value.system.temperatures || !data.value.system.temperatures.length) {
-        h.push('Temperature sensors not detected. Ensure lm-sensors is installed: "sudo apt install lm-sensors && sudo sensors-detect".');
-      }
-      if (!data.value.gpu) {
-        h.push('GPU monitoring: build with --features gpu. Requires NVIDIA drivers (NVML) on Linux or Metal on macOS.');
-      }
-      if (!data.value.docker || !data.value.docker.length) {
-        h.push('Docker monitoring: build with --features docker. Ensure the Docker daemon is running and the current user is in the docker group.');
-      }
+      if (!pane.data.system.power || !pane.data.system.power.available) h.push('Power: sudo chmod a+r /sys/class/powercap/intel-rapl:*/energy_uj');
+      if (!pane.data.system.temperatures || !pane.data.system.temperatures.length) h.push('Temps: sudo apt install lm-sensors && sudo sensors-detect');
       return h;
-    });
-    const sortedTemps = computed(() => {
-      if (!data.value || !data.value.system.temperatures) return [];
-      return [...data.value.system.temperatures].sort((a, b) => b[1] - a[1]);
-    });
+    }
+
+    // Charts
+    function lineChart(color, data) {
+      return { animation:false, grid:{left:30,right:8,top:8,bottom:16}, xAxis:{type:'category',data:Array(60).fill(''),show:false},
+        yAxis:{type:'value',min:0,max:100,splitLine:{lineStyle:{color:'#21262d'}},axisLabel:{color:'#8b949e',fontSize:9}},
+        series:[{type:'line',data,smooth:true,symbol:'none',lineStyle:{width:1.5,color},areaStyle:{color:{type:'linear',x:0,y:0,x2:0,y2:1,colorStops:[{offset:0,color:color+'44'},{offset:1,color:color+'08'}]}}}] };
+    }
+    function dualChart(ram, swap) {
+      return { animation:false, grid:{left:30,right:8,top:18,bottom:16}, xAxis:{type:'category',data:Array(60).fill(''),show:false},
+        yAxis:{type:'value',min:0,max:100,splitLine:{lineStyle:{color:'#21262d'}},axisLabel:{color:'#8b949e',fontSize:9}},
+        legend:{data:['RAM','Swap'],textStyle:{color:'#8b949e',fontSize:9},top:0,right:8},
+        series:[
+          {name:'RAM',type:'line',data:ram,smooth:true,symbol:'none',lineStyle:{width:1.5,color:'#bc8cff'},areaStyle:{color:{type:'linear',x:0,y:0,x2:0,y2:1,colorStops:[{offset:0,color:'#bc8cff44'},{offset:1,color:'#bc8cff08'}]}}},
+          {name:'Swap',type:'line',data:swap,smooth:true,symbol:'none',lineStyle:{width:1.5,color:'#f0883e',type:'dashed'},areaStyle:{color:{type:'linear',x:0,y:0,x2:0,y2:1,colorStops:[{offset:0,color:'#f0883e22'},{offset:1,color:'#f0883e04'}]}}},
+        ] };
+    }
 
     function toggleTheme() {
       darkMode.value = !darkMode.value;
-      document.documentElement.style.setProperty('--bg', darkMode.value ? '#0d1117' : '#f6f8fa');
-      document.documentElement.style.setProperty('--bg2', darkMode.value ? '#161b22' : '#ffffff');
-      document.documentElement.style.setProperty('--bg3', darkMode.value ? '#21262d' : '#f0f0f0');
-      document.documentElement.style.setProperty('--border', darkMode.value ? '#30363d' : '#d0d7de');
-      document.documentElement.style.setProperty('--fg', darkMode.value ? '#c9d1d9' : '#1f2328');
-      document.documentElement.style.setProperty('--fg2', darkMode.value ? '#8b949e' : '#656d76');
+      const d = darkMode.value;
+      document.documentElement.style.setProperty('--bg', d?'#0d1117':'#f6f8fa');
+      document.documentElement.style.setProperty('--bg2', d?'#161b22':'#ffffff');
+      document.documentElement.style.setProperty('--bg3', d?'#21262d':'#f0f0f0');
+      document.documentElement.style.setProperty('--border', d?'#30363d':'#d0d7de');
+      document.documentElement.style.setProperty('--fg', d?'#c9d1d9':'#1f2328');
+      document.documentElement.style.setProperty('--fg2', d?'#8b949e':'#656d76');
     }
 
-    const coreColors = ['#58a6ff','#f0883e','#3fb950','#bc8cff','#f85149','#79c0ff','#d29922','#da6ce6',
-      '#56d4dd','#e06c75','#98c379','#61afef','#c678dd','#e5c07b','#ff6b6b','#7ec8e3'];
+    // Init with local server
+    onMounted(() => {
+      const p = createPane(window.location.origin);
+      panes.value.push(p);
+      window.addEventListener('resize', () => {
+        panes.value.forEach(p => { p._cpuChart?.resize(); p._memChart?.resize(); });
+      });
+    });
 
-    function makeSingleChart(color, history) {
-      return {
-        animation: false,
-        grid: { left:35, right:10, top:10, bottom:20 },
-        xAxis: { type:'category', data: Array(60).fill(''), show:false },
-        yAxis: { type:'value', min:0, max:100, splitLine:{lineStyle:{color:'#21262d'}}, axisLabel:{color:'#8b949e',fontSize:10} },
-        series: [{ type:'line', data:history, smooth:true, symbol:'none', lineStyle:{width:1.5,color}, areaStyle:{color:{type:'linear',x:0,y:0,x2:0,y2:1,colorStops:[{offset:0,color:color+'44'},{offset:1,color:color+'08'}]}} }]
-      };
-    }
+    onUnmounted(() => { panes.value.forEach(p => stopPolling(p)); });
 
-    function makeMemChart(ramHist, swapHist) {
-      return {
-        animation: false,
-        grid: { left:35, right:10, top:10, bottom:20 },
-        xAxis: { type:'category', data: Array(60).fill(''), show:false },
-        yAxis: { type:'value', min:0, max:100, splitLine:{lineStyle:{color:'#21262d'}}, axisLabel:{color:'#8b949e',fontSize:10} },
-        legend: { data:['RAM','Swap'], textStyle:{color:'#8b949e',fontSize:10}, top:0, right:10 },
-        series: [
-          { name:'RAM', type:'line', data:ramHist, smooth:true, symbol:'none', lineStyle:{width:1.5,color:'#bc8cff'}, areaStyle:{color:{type:'linear',x:0,y:0,x2:0,y2:1,colorStops:[{offset:0,color:'#bc8cff44'},{offset:1,color:'#bc8cff08'}]}} },
-          { name:'Swap', type:'line', data:swapHist, smooth:true, symbol:'none', lineStyle:{width:1.5,color:'#f0883e',type:'dashed'}, areaStyle:{color:{type:'linear',x:0,y:0,x2:0,y2:1,colorStops:[{offset:0,color:'#f0883e22'},{offset:1,color:'#f0883e04'}]}} },
-        ]
-      };
-    }
-
-    function makePerCoreChart(histories, count) {
-      return {
-        animation: false,
-        grid: { left:35, right:10, top:25, bottom:20 },
-        xAxis: { type:'category', data: Array(60).fill(''), show:false },
-        yAxis: { type:'value', min:0, max:100, splitLine:{lineStyle:{color:'#21262d'}}, axisLabel:{color:'#8b949e',fontSize:10} },
-        legend: { data: Array.from({length:count}, (_,i) => 'Core '+i), textStyle:{color:'#8b949e',fontSize:9}, top:0, type:'scroll', pageTextStyle:{color:'#8b949e'} },
-        series: histories.map((h,i) => ({
-          name: 'Core '+i, type:'line', data:[...h], smooth:true, symbol:'none',
-          lineStyle:{width:1.2, color:coreColors[i%coreColors.length]},
-        }))
-      };
-    }
-
-    async function fetchData() {
-      try {
-        const resp = await fetch('/api/v1/all');
-        data.value = await resp.json();
-        connected.value = true;
-        cpuHistory.push(data.value.system.cpu_global); cpuHistory.shift();
-        const rp = parseFloat(memPct.value); ramHistory.push(rp); ramHistory.shift();
-        const sp = parseFloat(swapPct.value); swapHistory.push(sp); swapHistory.shift();
-        // Per-core histories
-        const nc = data.value.system.cpus.length;
-        while (coreHistories.length < nc) coreHistories.push(Array(60).fill(0));
-        for (let i = 0; i < nc; i++) {
-          coreHistories[i].push(data.value.system.cpus[i].usage);
-          coreHistories[i].shift();
-        }
-        await nextTick();
-        if (cpuChart.value && !cpuChartInst) cpuChartInst = echarts.init(cpuChart.value);
-        if (memChart.value && !memChartInst) memChartInst = echarts.init(memChart.value);
-        if (perCoreChart.value && !perCoreChartInst) perCoreChartInst = echarts.init(perCoreChart.value);
-        if (cpuChartInst) cpuChartInst.setOption(makeSingleChart('#58a6ff',[...cpuHistory]));
-        if (memChartInst) memChartInst.setOption(makeMemChart([...ramHistory],[...swapHistory]));
-        if (perCoreChartInst) perCoreChartInst.setOption(makePerCoreChart(coreHistories, nc));
-      } catch(e) { connected.value = false; }
-    }
-
-    function restartPolling() {
-      if (timer) clearInterval(timer);
-      timer = setInterval(fetchData, refreshInterval.value);
-    }
-
-    onMounted(() => { fetchData(); restartPolling(); window.addEventListener('resize', () => { cpuChartInst?.resize(); memChartInst?.resize(); perCoreChartInst?.resize(); }); });
-    onUnmounted(() => { if (timer) clearInterval(timer); });
-
-    return { data, connected, refreshInterval, darkMode, procFilter, cpuChart, memChart, perCoreChart,
-      sorts, doSort, sortIcon, sortedNets, sortedDisks, sortedDocker, sortedPorts, filteredProcs,
-      killTarget, killResult, confirmKill, executeKill,
-      memPct, swapPct, formatBytes, formatRate, formatUptime, pctColor, pctClass,
-      diskPct, tempGradient, maxTemp, sortedTemps, hasTempOrPower, hints, toggleTheme, restartPolling };
+    return { panes, rootLayout, darkMode, globalRefresh, killTarget, killResult, endpointModal, endpointInput,
+      splitPane, confirmEndpoint, cancelEndpoint, removePane, updateAllRefresh, toggleTheme,
+      pSort, sI, pSorted, filtProcs, confirmKill, executeKill, paneLabel, paneHints,
+      memPct, swapPct, hasSensors, sortTemps, tempGrad,
+      formatBytes, formatRate, formatUptime, pctColor, pctClass, diskPct };
   }
 }).mount('#app');
 </script>
