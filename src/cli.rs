@@ -36,4 +36,16 @@ pub struct Cli {
     /// Print GPU detection info and exit
     #[arg(long, hide = true)]
     pub debug_gpu: bool,
+
+    /// Run as a web server instead of TUI
+    #[arg(short, long)]
+    pub web: bool,
+
+    /// Web server port (default: 61208)
+    #[arg(long, default_value_t = 61208)]
+    pub port: u16,
+
+    /// Web server bind address (default: 0.0.0.0)
+    #[arg(long, default_value = "0.0.0.0")]
+    pub bind: String,
 }

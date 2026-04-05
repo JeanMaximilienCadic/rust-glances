@@ -27,7 +27,7 @@ impl DockerHandle {
     pub fn new() -> Self { Self }
 }
 #[cfg(not(feature = "docker"))]
-#[derive(Clone, Default)]
+#[derive(Clone, Default, serde::Serialize)]
 pub struct ContainerInfo {
     pub id: String,
     pub name: String,

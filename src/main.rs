@@ -6,6 +6,8 @@ mod metrics;
 mod types;
 mod ui;
 mod utils;
+#[cfg(feature = "web")]
+mod web;
 
 use std::io;
 use std::time::{Duration, Instant};
@@ -86,6 +88,19 @@ fn main() -> Result<()> {
     #[cfg(feature = "gpu")]
     if cli.debug_gpu {
         debug_gpu();
+        return Ok(());
+    }
+
+    // Web server mode
+    #[cfg(feature = "web")]
+    if cli.web {
+        web::run_web_server(
+            &cli.bind,
+            cli.port,
+            cli.refresh,
+            !cli.no_gpu,
+            !cli.no_docker,
+        )?;
         return Ok(());
     }
 

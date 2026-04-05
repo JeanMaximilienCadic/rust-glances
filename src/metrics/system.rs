@@ -128,21 +128,27 @@ pub fn collect_system_metrics(
 
     last_disk_stats.insert("_total".to_string(), (total_disk_read, total_disk_write));
 
-    // Disks
-    let disks_info: Vec<DiskInfo> = disks
-        .iter()
-        .filter(|disk| {
-            let mp = disk.mount_point().to_string_lossy();
-            let name = disk.name().to_string_lossy();
-            // Filter out pseudo-filesystems but keep real ones
-            !mp.starts_with("/System/Volumes/")
-                || mp == "/System/Volumes/Data"
-                || name.contains("disk")
-        })
-        .map(|disk| {
-            DiskInfo {
-                name: disk.name().to_string_lossy().to_string(),
-                mount_point: disk.mount_point().to_string_lossy().to_string(),
+    // Disks — group by filesystem name with all mount points (lsblk-style)
+    let mut disk_map: indexmap::IndexMap<String, DiskInfo> = indexmap::IndexMap::new();
+    for disk in disks.iter() {
+        let mp = disk.mount_point().to_string_lossy();
+        let name = disk.name().to_string_lossy();
+        // Filter out pseudo-filesystems but keep real ones
+        if mp.starts_with("/System/Volumes/")
+            && mp != "/System/Volumes/Data"
+            && !name.contains("disk")
+        {
+            continue;
+        }
+        let key = name.to_string();
+        disk_map
+            .entry(key)
+            .and_modify(|info| {
+                info.mount_points.push(mp.to_string());
+            })
+            .or_insert_with(|| DiskInfo {
+                name: name.to_string(),
+                mount_points: vec![mp.to_string()],
                 total: disk.total_space(),
                 used: disk.total_space() - disk.available_space(),
                 fs_type: disk.file_system().to_string_lossy().to_string(),
@@ -150,9 +156,9 @@ pub fn collect_system_metrics(
                 write_bytes: total_disk_write,
                 read_rate: total_disk_read_rate,
                 write_rate: total_disk_write_rate,
-            }
-        })
-        .collect();
+            });
+    }
+    let disks_info: Vec<DiskInfo> = disk_map.into_values().collect();
 
     // Networks — show ALL interfaces, no filtering
     let networks_info: Vec<NetworkInfo> = networks
