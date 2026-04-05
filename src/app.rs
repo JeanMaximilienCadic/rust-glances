@@ -14,6 +14,7 @@ use crate::metrics::docker::{
     collect_docker_metrics, collect_docker_stats, ContainerInfo, DockerHandle,
 };
 use crate::metrics::ports::{collect_port_processes, PortProcessInfo};
+use crate::metrics::power::{collect_power_metrics, RaplState};
 use crate::metrics::{collect_gpu_metrics, collect_system_metrics, GpuHandle};
 use crate::types::{
     ActivePanel, GpuBackend, GpuMetrics, GpuProcessInfo, HistoryData, KillConfirmation,
@@ -168,6 +169,7 @@ pub struct App {
     // State tracking
     pub last_network_stats: HashMap<String, (u64, u64)>,
     pub last_disk_stats: HashMap<String, (u64, u64)>,
+    pub rapl_state: RaplState,
     pub last_update: Instant,
 
     // UI state
@@ -245,6 +247,7 @@ impl App {
             history: HistoryData::new(),
             last_network_stats: HashMap::new(),
             last_disk_stats: HashMap::new(),
+            rapl_state: RaplState::default(),
             last_update: Instant::now(),
             running: true,
             show_help: false,
@@ -318,6 +321,8 @@ impl App {
                 &mut self.last_docker_cpu,
             );
         }
+
+        self.system_metrics.power = collect_power_metrics(&mut self.rapl_state, elapsed);
 
         self.port_processes = collect_port_processes(&self.system, &self.users);
 
