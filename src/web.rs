@@ -26,6 +26,9 @@ use crate::metrics::docker::{
 use crate::app::ContainerInfo;
 
 const FRONTEND_HTML: &str = include_str!("frontend/index.html");
+const MANIFEST_JSON: &str = r##"{"name":"Glances","short_name":"Glances","description":"System monitor","start_url":"/","display":"standalone","background_color":"#0d1117","theme_color":"#0d1117","icons":[{"src":"/icon.svg","sizes":"any","type":"image/svg+xml"}]}"##;
+const SERVICE_WORKER_JS: &str = r#"self.addEventListener('install',e=>self.skipWaiting());self.addEventListener('activate',e=>e.waitUntil(self.clients.claim()));self.addEventListener('fetch',e=>{if(e.request.url.includes('/api/')){e.respondWith(fetch(e.request).catch(()=>new Response('{"error":"offline"}',{headers:{'Content-Type':'application/json'}})))}});"#;
+const ICON_SVG: &str = r##"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128"><rect width="128" height="128" rx="24" fill="#0d1117"/><text x="64" y="78" text-anchor="middle" font-family="monospace" font-size="56" font-weight="bold" fill="#58a6ff">G</text><rect x="20" y="90" width="88" height="6" rx="3" fill="#21262d"/><rect x="20" y="90" width="55" height="6" rx="3" fill="#3fb950"/></svg>"##;
 
 /// JSON response for /api/v1/all
 #[derive(Serialize)]
@@ -221,6 +224,9 @@ pub fn run_web_server(
                 .route("/", get(serve_frontend))
                 .route("/frontend/", get(serve_frontend))
                 .route("/frontend/{*path}", get(serve_frontend))
+                .route("/manifest.json", get(serve_manifest))
+                .route("/sw.js", get(serve_sw))
+                .route("/icon.svg", get(serve_icon))
                 .route("/api/v1/all", get(api_all))
                 .route("/api/v1/system", get(api_system))
                 .route("/api/v1/gpu", get(api_gpu))
@@ -237,6 +243,18 @@ pub fn run_web_server(
         })?;
 
     Ok(())
+}
+
+async fn serve_manifest() -> impl IntoResponse {
+    (StatusCode::OK, [(header::CONTENT_TYPE, "application/manifest+json")], MANIFEST_JSON)
+}
+
+async fn serve_sw() -> impl IntoResponse {
+    (StatusCode::OK, [(header::CONTENT_TYPE, "application/javascript")], SERVICE_WORKER_JS)
+}
+
+async fn serve_icon() -> impl IntoResponse {
+    (StatusCode::OK, [(header::CONTENT_TYPE, "image/svg+xml")], ICON_SVG)
 }
 
 async fn serve_frontend() -> impl IntoResponse {
