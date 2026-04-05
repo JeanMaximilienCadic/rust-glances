@@ -19,6 +19,7 @@ pub fn render_tabs(frame: &mut Frame, area: Rect, app: &App) {
         (ViewTab::Disks, "Disks"),
         (ViewTab::Docker, "Docker"),
         (ViewTab::Gpu, "GPU"),
+        (ViewTab::Ports, "Ports"),
     ];
 
     let mut spans = vec![Span::raw(" ")];

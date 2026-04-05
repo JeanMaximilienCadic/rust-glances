@@ -17,6 +17,7 @@ use super::header::render_header;
 use super::http_dialog::render_http_dialog;
 #[cfg(feature = "docker")]
 use super::logs_dialog::render_logs_dialog;
+use super::ports::render_port_processes;
 use super::processes::render_cpu_processes;
 use super::system::{
     render_cpu_section, render_disk_full, render_load_section, render_memory_section,
@@ -81,6 +82,7 @@ pub fn render_ui(frame: &mut Frame, app: &mut App) {
         ViewTab::Disks => render_disks_view(frame, content, app),
         ViewTab::Docker => render_docker_view(frame, content, app),
         ViewTab::Gpu => render_gpu_view(frame, content, app),
+        ViewTab::Ports => render_ports_view(frame, content, app),
     }
 
     // Render overlays on top
@@ -382,6 +384,11 @@ fn format_rate(bytes_per_sec: f64) -> String {
     } else {
         format!("{:.0}b", bytes_per_sec)
     }
+}
+
+/// Full-screen ports view.
+fn render_ports_view(frame: &mut Frame, area: Rect, app: &mut App) {
+    render_port_processes(frame, area, app);
 }
 
 fn truncate(s: &str, max: usize) -> String {

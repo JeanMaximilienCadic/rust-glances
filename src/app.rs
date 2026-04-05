@@ -13,6 +13,7 @@ use crate::cli::Cli;
 use crate::metrics::docker::{
     collect_docker_metrics, collect_docker_stats, ContainerInfo, DockerHandle,
 };
+use crate::metrics::ports::{collect_port_processes, PortProcessInfo};
 use crate::metrics::{collect_gpu_metrics, collect_system_metrics, GpuHandle};
 use crate::types::{
     ActivePanel, GpuBackend, GpuMetrics, GpuProcessInfo, HistoryData, KillConfirmation,
@@ -139,6 +140,7 @@ pub enum ViewTab {
     Disks,
     Docker,
     Gpu,
+    Ports,
 }
 
 /// Main application state.
@@ -203,6 +205,10 @@ pub struct App {
     pub container_logs: Option<ContainerLogsState>,
     // Alert events
     pub alerts: Vec<AlertEvent>,
+    // Port processes
+    pub port_processes: Vec<PortProcessInfo>,
+    pub ports_state: TableState,
+    pub ports_area: Option<Rect>,
 }
 
 impl App {
@@ -265,6 +271,9 @@ impl App {
             http_request: HttpRequestState::default(),
             container_logs: None,
             alerts: Vec::new(),
+            port_processes: Vec::new(),
+            ports_state: TableState::default(),
+            ports_area: None,
         };
 
         app.cpu_process_state.select(Some(0));
@@ -309,6 +318,8 @@ impl App {
                 &mut self.last_docker_cpu,
             );
         }
+
+        self.port_processes = collect_port_processes(&self.system, &self.users);
 
         self.update_history();
         self.check_alerts();
@@ -679,6 +690,13 @@ impl App {
             KeyCode::Char('4') => self.active_tab = ViewTab::Disks,
             KeyCode::Char('5') => self.active_tab = ViewTab::Docker,
             KeyCode::Char('6') => self.active_tab = ViewTab::Gpu,
+            KeyCode::Char('7') => {
+                self.active_tab = ViewTab::Ports;
+                self.active_panel = ActivePanel::Ports;
+                if self.ports_state.selected().is_none() && !self.port_processes.is_empty() {
+                    self.ports_state.select(Some(0));
+                }
+            }
             KeyCode::Tab => {
                 // On Metal, skip GPU processes panel since it's not available
                 let is_metal = self
@@ -691,6 +709,7 @@ impl App {
                     self.active_panel = match self.active_panel {
                         ActivePanel::CpuProcesses => ActivePanel::GpuProcesses,
                         ActivePanel::GpuProcesses => ActivePanel::CpuProcesses,
+                        ActivePanel::Ports => ActivePanel::CpuProcesses,
                     };
                 }
                 // On Metal, Tab does nothing (stays on CPU processes)
@@ -943,6 +962,14 @@ impl App {
                     return;
                 }
             }
+            ActivePanel::Ports => {
+                let idx = self.ports_state.selected().unwrap_or(0);
+                if let Some(proc) = self.port_processes.get(idx) {
+                    (proc.pid, format!("{} (:{} {})", proc.name, proc.port, proc.protocol))
+                } else {
+                    return;
+                }
+            }
         };
 
         self.kill_confirm = Some(KillConfirmation { pid, name, signal });
@@ -1055,6 +1082,7 @@ impl App {
                     self.sort_ascending = false;
                 }
             }
+            ActivePanel::Ports => {}
         }
     }
 
@@ -1074,9 +1102,25 @@ impl App {
             return;
         }
 
+        // Ports tab: navigate port processes
+        if self.active_tab == ViewTab::Ports {
+            let len = self.port_processes.len();
+            if len == 0 { return; }
+            let current = self.ports_state.selected().unwrap_or(0);
+            let new = if delta > 0 {
+                (current + delta as usize).min(len - 1)
+            } else {
+                current.saturating_sub((-delta) as usize)
+            };
+            self.ports_state.select(Some(new));
+            self.active_panel = ActivePanel::Ports;
+            return;
+        }
+
         let len = match self.active_panel {
             ActivePanel::CpuProcesses => self.get_sorted_cpu_processes().len(),
             ActivePanel::GpuProcesses => self.get_sorted_gpu_processes().len(),
+            ActivePanel::Ports => self.port_processes.len(),
         };
 
         if len == 0 {
@@ -1086,6 +1130,7 @@ impl App {
         let state = match self.active_panel {
             ActivePanel::CpuProcesses => &mut self.cpu_process_state,
             ActivePanel::GpuProcesses => &mut self.gpu_process_state,
+            ActivePanel::Ports => &mut self.ports_state,
         };
 
         let current = state.selected().unwrap_or(0);
@@ -1106,9 +1151,18 @@ impl App {
             return;
         }
 
+        if self.active_tab == ViewTab::Ports {
+            let len = self.port_processes.len();
+            if len == 0 { return; }
+            self.ports_state.select(Some(pos.min(len - 1)));
+            self.active_panel = ActivePanel::Ports;
+            return;
+        }
+
         let len = match self.active_panel {
             ActivePanel::CpuProcesses => self.get_sorted_cpu_processes().len(),
             ActivePanel::GpuProcesses => self.get_sorted_gpu_processes().len(),
+            ActivePanel::Ports => self.port_processes.len(),
         };
 
         if len == 0 {
@@ -1118,6 +1172,7 @@ impl App {
         let state = match self.active_panel {
             ActivePanel::CpuProcesses => &mut self.cpu_process_state,
             ActivePanel::GpuProcesses => &mut self.gpu_process_state,
+            ActivePanel::Ports => &mut self.ports_state,
         };
 
         state.select(Some(pos.min(len - 1)));
