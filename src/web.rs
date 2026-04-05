@@ -37,6 +37,14 @@ struct AllMetrics {
     gpu: Option<GpuMetrics>,
     docker: Vec<ContainerInfo>,
     ports: Vec<PortProcessInfo>,
+    history: ChartHistory,
+}
+
+#[derive(Serialize)]
+struct ChartHistory {
+    cpu: Vec<f64>,
+    ram_pct: Vec<f64>,
+    swap_pct: Vec<f64>,
 }
 
 /// Shared application state for the web server.
@@ -58,6 +66,10 @@ struct WebState {
     gpu_metrics: Option<GpuMetrics>,
     docker_containers: Vec<ContainerInfo>,
     port_processes: Vec<PortProcessInfo>,
+    // Chart history (survives page refresh)
+    cpu_history: Vec<f64>,
+    ram_pct_history: Vec<f64>,
+    swap_pct_history: Vec<f64>,
     refresh_count: u64,
     #[cfg(feature = "docker")]
     docker_handle: DockerHandle,
@@ -96,6 +108,20 @@ impl WebState {
             &mut self.last_disk_stats,
             elapsed,
         );
+
+        // Update chart history
+        self.cpu_history.remove(0);
+        self.cpu_history.push(self.system_metrics.cpu_global as f64);
+        let ram_pct = if self.system_metrics.memory.total > 0 {
+            self.system_metrics.memory.used as f64 / self.system_metrics.memory.total as f64 * 100.0
+        } else { 0.0 };
+        self.ram_pct_history.remove(0);
+        self.ram_pct_history.push(ram_pct);
+        let swap_pct = if self.system_metrics.memory.swap_total > 0 {
+            self.system_metrics.memory.swap_used as f64 / self.system_metrics.memory.swap_total as f64 * 100.0
+        } else { 0.0 };
+        self.swap_pct_history.remove(0);
+        self.swap_pct_history.push(swap_pct);
 
         // Parallel collection of independent metrics
         let gpu_enabled = self.gpu_enabled;
@@ -184,6 +210,9 @@ pub fn run_web_server(
         gpu_metrics: None,
         docker_containers: Vec::new(),
         port_processes: Vec::new(),
+        cpu_history: vec![0.0; 60],
+        ram_pct_history: vec![0.0; 60],
+        swap_pct_history: vec![0.0; 60],
         refresh_count: u64::MAX,  // ensures first refresh triggers all collections
         #[cfg(feature = "docker")]
         docker_handle: DockerHandle::new(),
@@ -195,10 +224,42 @@ pub fn run_web_server(
     web_state.refresh();
     let state = Arc::new(Mutex::new(web_state));
 
-    let addr = format!("{}:{}", bind, port);
-    println!("Glances web server running at http://{}", addr);
-    println!("  Frontend: http://{}/", addr);
-    println!("  API:      http://{}/api/v1/all", addr);
+    let https_port = port + 1;
+    let addr_http = format!("{}:{}", bind, port);
+    let addr_https = format!("{}:{}", bind, https_port);
+
+    // Generate self-signed TLS certificate
+    let cert = rcgen::generate_simple_self_signed(vec![
+        "localhost".to_string(),
+        bind.to_string(),
+        "127.0.0.1".to_string(),
+    ])
+    .expect("Failed to generate self-signed certificate");
+
+    let cert_pem = cert.cert.pem();
+    let key_pem = cert.key_pair.serialize_pem();
+
+    let tls_config = {
+        let cert_chain = vec![rustls::pki_types::CertificateDer::from(
+            cert.cert.der().to_vec(),
+        )];
+        let key_der = rustls::pki_types::PrivateKeyDer::try_from(
+            cert.key_pair.serialize_der(),
+        )
+        .expect("Failed to parse private key");
+
+        let mut config = rustls::ServerConfig::builder()
+            .with_no_client_auth()
+            .with_single_cert(cert_chain, key_der)
+            .expect("Failed to build TLS config");
+        config.alpn_protocols = vec![b"h2".to_vec(), b"http/1.1".to_vec()];
+        config
+    };
+
+    println!("Glances web server running:");
+    println!("  HTTP:  http://{}/", addr_http);
+    println!("  HTTPS: https://{}/ (self-signed)", addr_https);
+    println!("  API:   http://{}/api/v1/all", addr_http);
 
     // Now build a tokio runtime for the HTTP server only
     tokio::runtime::Builder::new_multi_thread()
@@ -236,8 +297,23 @@ pub fn run_web_server(
                 .layer(CorsLayer::permissive())
                 .with_state(state);
 
-            let listener = tokio::net::TcpListener::bind(&addr).await?;
-            axum::serve(listener, app).await?;
+            // HTTP server
+            let http_app = app.clone();
+            tokio::spawn(async move {
+                let listener = tokio::net::TcpListener::bind(&addr_http).await.unwrap();
+                axum::serve(listener, http_app).await.ok();
+            });
+
+            // HTTPS server with self-signed cert
+            let rustls_config = axum_server::tls_rustls::RustlsConfig::from_pem(
+                cert_pem.into_bytes(),
+                key_pem.into_bytes(),
+            )
+            .await?;
+
+            axum_server::bind_rustls(addr_https.parse().unwrap(), rustls_config)
+                .serve(app.into_make_service())
+                .await?;
 
             Ok::<_, anyhow::Error>(())
         })?;
@@ -272,6 +348,11 @@ async fn api_all(State(state): State<SharedState>) -> impl IntoResponse {
         gpu: s.gpu_metrics.clone(),
         docker: s.docker_containers.clone(),
         ports: s.port_processes.clone(),
+        history: ChartHistory {
+            cpu: s.cpu_history.clone(),
+            ram_pct: s.ram_pct_history.clone(),
+            swap_pct: s.swap_pct_history.clone(),
+        },
     })
 }
 
