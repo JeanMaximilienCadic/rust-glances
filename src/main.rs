@@ -100,6 +100,8 @@ fn main() -> Result<()> {
             cli.refresh,
             !cli.no_gpu,
             !cli.no_docker,
+            cli.tls_cert.as_deref(),
+            cli.tls_key.as_deref(),
         )?;
         return Ok(());
     }
