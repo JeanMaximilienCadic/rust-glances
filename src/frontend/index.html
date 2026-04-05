@@ -237,13 +237,6 @@
           </div>
         </div>
       </div>
-      <!-- Docker — full -->
-      <div class="card" v-if="node.pane.data.docker && node.pane.data.docker.length && node.pane.displayMode === 'full'">
-        <div class="card-title">Docker<span>{{ node.pane.data.docker.length }}</span></div>
-        <div class="card-body scroll-body" style="max-height:100px;"><table><thead><tr><th>Name</th><th>St</th><th>CPU%</th></tr></thead><tbody>
-          <tr v-for="c in node.pane.data.docker" :key="c.id"><td class="fs-name">{{ c.name }}</td><td><span class="tag" :class="c.state==='running'?'tag-running':'tag-exited'">{{ c.state }}</span></td><td>{{ (c.cpu_percent||0).toFixed(1) }}</td></tr>
-        </tbody></table></div>
-      </div>
       <!-- Ports — full -->
       <div class="card" v-if="node.pane.data.ports && node.pane.data.ports.length && node.pane.displayMode === 'full'">
         <div class="card-title">Ports<span>{{ node.pane.data.ports.length }}</span></div>
@@ -262,10 +255,6 @@
         </tr></thead><tbody>
           <tr v-for="p in $root.filtProcs(node.pane)" :key="p.pid"><td>{{ p.pid }}</td><td>{{ p.name }}</td><td :class="$root.pctClass(p.cpu_usage)">{{ p.cpu_usage.toFixed(1) }}</td><td>{{ $root.formatBytes(p.memory_bytes) }}</td></tr>
         </tbody></table></div>
-      </div>
-      <!-- Hints — full -->
-      <div class="hint-bar" v-if="node.pane.displayMode === 'full' && $root.paneHints(node.pane).length">
-        <div v-for="h in $root.paneHints(node.pane)" :key="h"><span>&#9432;</span>{{ h }}</div>
       </div>
     </div>
     <div v-else class="pane-content"><div class="loading">Connecting to {{ node.pane.endpoint }}...</div></div>
