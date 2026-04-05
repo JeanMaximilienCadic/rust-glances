@@ -55,6 +55,7 @@ struct WebState {
     gpu_metrics: Option<GpuMetrics>,
     docker_containers: Vec<ContainerInfo>,
     port_processes: Vec<PortProcessInfo>,
+    refresh_count: u64,
     #[cfg(feature = "docker")]
     docker_handle: DockerHandle,
     #[cfg(feature = "docker")]
@@ -67,11 +68,19 @@ impl WebState {
     fn refresh(&mut self) {
         let elapsed = self.last_update.elapsed();
         self.last_update = Instant::now();
+        self.refresh_count = self.refresh_count.wrapping_add(1);
 
-        self.system.refresh_all();
+        // Every cycle: CPU + memory + processes + networks
+        self.system
+            .refresh_processes(sysinfo::ProcessesToUpdate::All, true);
+        self.system.refresh_memory();
         self.networks.refresh();
-        self.disks.refresh();
-        self.components.refresh();
+
+        // Every 5 cycles: disks, components/temps
+        if self.refresh_count % 5 == 0 {
+            self.disks.refresh();
+            self.components.refresh();
+        }
 
         self.system_metrics = collect_system_metrics(
             &self.system,
@@ -90,7 +99,7 @@ impl WebState {
         }
 
         #[cfg(feature = "docker")]
-        if self.docker_enabled {
+        if self.docker_enabled && self.refresh_count % 5 == 0 {
             self.docker_containers = collect_docker_metrics(&self.docker_handle);
             collect_docker_stats(
                 &self.docker_handle,
@@ -100,7 +109,11 @@ impl WebState {
         }
 
         self.system_metrics.power = collect_power_metrics(&mut self.rapl_state, elapsed);
-        self.port_processes = collect_port_processes(&self.system, &self.users);
+
+        // Every 5 cycles: port scanning (expensive)
+        if self.refresh_count % 5 == 0 {
+            self.port_processes = collect_port_processes(&self.system, &self.users);
+        }
     }
 }
 
@@ -133,6 +146,7 @@ pub fn run_web_server(
         gpu_metrics: None,
         docker_containers: Vec::new(),
         port_processes: Vec::new(),
+        refresh_count: u64::MAX,  // ensures first refresh triggers all collections
         #[cfg(feature = "docker")]
         docker_handle: DockerHandle::new(),
         #[cfg(feature = "docker")]

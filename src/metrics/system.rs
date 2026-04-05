@@ -67,28 +67,8 @@ pub fn collect_system_metrics(
     let cpu_count = cpus.len();
     let cpu_global = system.global_cpu_usage();
 
-    // CPU breakdown estimate from process stats
-    let mut total_user: f64 = 0.0;
-    let mut _total_system: f64 = 0.0;
-    for (_pid, proc) in system.processes() {
-        let cpu = proc.cpu_usage() as f64;
-        match proc.status() {
-            ProcessStatus::Run => total_user += cpu,
-            _ => _total_system += cpu * 0.1, // rough estimate
-        }
-    }
-    // Normalize to percentage of total CPU capacity
+    // CPU breakdown placeholders (computed in single-pass below)
     let total_capacity = cpu_count as f64 * 100.0;
-    let user_pct = (total_user / total_capacity * 100.0).min(100.0);
-    let system_pct = ((cpu_global as f64) - user_pct).max(0.0).min(100.0);
-    let idle_pct = (100.0 - cpu_global as f64).max(0.0);
-
-    let cpu_breakdown = CpuBreakdown {
-        user: user_pct,
-        system: system_pct,
-        idle: idle_pct,
-        nice: 0.0,
-    };
 
     // Memory - detailed breakdown
     let total_mem = system.total_memory();
@@ -110,14 +90,85 @@ pub fn collect_system_metrics(
         swap_free: system.free_swap(),
     };
 
-    // Aggregate disk I/O from all processes
+    // Single-pass: CPU breakdown + disk I/O aggregation + process list
+    let mut total_user: f64 = 0.0;
     let mut total_disk_read: u64 = 0;
     let mut total_disk_write: u64 = 0;
-    for (_pid, proc) in system.processes() {
+
+    // User map for process info (built once)
+    let user_map: HashMap<_, _> = users
+        .iter()
+        .map(|u| (u.id().clone(), u.name().to_string()))
+        .collect();
+
+    let mut processes: Vec<ProcessInfo> = Vec::with_capacity(system.processes().len());
+
+    for (pid, proc) in system.processes() {
+        // CPU breakdown
+        let cpu = proc.cpu_usage() as f64;
+        if matches!(proc.status(), ProcessStatus::Run) {
+            total_user += cpu;
+        }
+
+        // Disk I/O aggregation
         let du = proc.disk_usage();
         total_disk_read += du.total_read_bytes;
         total_disk_write += du.total_written_bytes;
+
+        // Build process info
+        let user = proc
+            .user_id()
+            .and_then(|uid| user_map.get(uid))
+            .cloned()
+            .unwrap_or_else(|| "?".into());
+
+        let status = match proc.status() {
+            ProcessStatus::Run => "R",
+            ProcessStatus::Sleep => "S",
+            ProcessStatus::Idle => "I",
+            ProcessStatus::Zombie => "Z",
+            ProcessStatus::Stop => "T",
+            _ => "?",
+        }
+        .to_string();
+
+        let cmd: Vec<_> = proc
+            .cmd()
+            .iter()
+            .map(|s| s.to_string_lossy().to_string())
+            .collect();
+        let command = if cmd.is_empty() {
+            proc.name().to_string_lossy().to_string()
+        } else {
+            cmd.join(" ")
+        };
+
+        processes.push(ProcessInfo {
+            pid: pid.as_u32(),
+            name: proc.name().to_string_lossy().to_string(),
+            user,
+            cpu_usage: proc.cpu_usage(),
+            memory_usage: (proc.memory() as f32 / total_mem as f32) * 100.0,
+            memory_bytes: proc.memory(),
+            disk_read_rate: du.read_bytes as f64,
+            disk_write_rate: du.written_bytes as f64,
+            status,
+            command,
+        });
     }
+
+    let user_pct = (total_user / total_capacity * 100.0).min(100.0);
+    let system_pct = ((cpu_global as f64) - user_pct).max(0.0).min(100.0);
+    let idle_pct = (100.0 - cpu_global as f64).max(0.0);
+    let cpu_breakdown = CpuBreakdown {
+        user: user_pct,
+        system: system_pct,
+        idle: idle_pct,
+        nice: 0.0,
+    };
+
+    let process_count = processes.len();
+    let thread_count = process_count;
 
     let (prev_total_r, prev_total_w) = last_disk_stats
         .get("_total")
@@ -198,65 +249,6 @@ pub fn collect_system_metrics(
             }
         })
         .collect();
-
-    // User map for process info
-    let user_map: HashMap<_, _> = users
-        .iter()
-        .map(|u| (u.id().clone(), u.name().to_string()))
-        .collect();
-
-    // Processes
-    let processes: Vec<ProcessInfo> = system
-        .processes()
-        .iter()
-        .map(|(pid, proc)| {
-            let user = proc
-                .user_id()
-                .and_then(|uid| user_map.get(uid))
-                .cloned()
-                .unwrap_or_else(|| "?".into());
-
-            let status = match proc.status() {
-                ProcessStatus::Run => "R",
-                ProcessStatus::Sleep => "S",
-                ProcessStatus::Idle => "I",
-                ProcessStatus::Zombie => "Z",
-                ProcessStatus::Stop => "T",
-                _ => "?",
-            }
-            .to_string();
-
-            let cmd: Vec<_> = proc
-                .cmd()
-                .iter()
-                .map(|s| s.to_string_lossy().to_string())
-                .collect();
-            let command = if cmd.is_empty() {
-                proc.name().to_string_lossy().to_string()
-            } else {
-                cmd.join(" ")
-            };
-
-            let du = proc.disk_usage();
-
-            ProcessInfo {
-                pid: pid.as_u32(),
-                name: proc.name().to_string_lossy().to_string(),
-                user,
-                cpu_usage: proc.cpu_usage(),
-                memory_usage: (proc.memory() as f32 / total_mem as f32) * 100.0,
-                memory_bytes: proc.memory(),
-                disk_read_rate: du.read_bytes as f64,
-                disk_write_rate: du.written_bytes as f64,
-                status,
-                command,
-            }
-        })
-        .collect();
-
-    let process_count = system.processes().len();
-    // Approximate thread count
-    let thread_count = system.processes().len();
 
     let (battery_pct, battery_state, battery_time_to_empty) = collect_battery();
 
