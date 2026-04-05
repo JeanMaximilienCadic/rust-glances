@@ -37,10 +37,6 @@
   .gauge-bar { flex:1; height:18px; background:var(--bg3); border-radius:3px; overflow:hidden; position:relative; }
   .gauge-fill { height:100%; border-radius:3px; transition:width .5s ease; }
   .gauge-text { position:absolute; right:6px; top:1px; font-size:11px; color:var(--fg); }
-  .stat-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(120px,1fr)); gap:8px; }
-  .stat { text-align:center; }
-  .stat .value { font-size:20px; font-weight:700; color:var(--accent); }
-  .stat .label { font-size:11px; color:var(--fg2); margin-top:2px; }
   table { width:100%; border-collapse:collapse; font-size:12px; }
   th { text-align:left; padding:6px 8px; color:var(--fg2); border-bottom:1px solid var(--border); font-weight:600; cursor:pointer; user-select:none; position:sticky; top:0; background:var(--bg2); z-index:1; }
   th:hover { color:var(--accent); }
@@ -104,24 +100,20 @@
   <div v-if="!data" class="loading">Connecting to Glances API&hellip;</div>
 
   <div v-else class="dashboard">
-    <!-- System info bar -->
+    <!-- System info strip -->
     <div class="card">
-      <div class="card-body stat-grid">
-        <div class="stat"><div class="value">{{ data.system.cpu_count }}</div><div class="label">CPUs</div></div>
-        <div class="stat"><div class="value">{{ data.system.cpu_global.toFixed(1) }}%</div><div class="label">CPU Usage</div></div>
-        <div class="stat"><div class="value">{{ formatBytes(data.system.memory.total) }}</div><div class="label">Total RAM</div></div>
-        <div class="stat"><div class="value">{{ memPct }}%</div><div class="label">RAM Usage</div></div>
-        <div class="stat"><div class="value">{{ formatUptime(data.system.uptime) }}</div><div class="label">Uptime</div></div>
-        <div class="stat"><div class="value">{{ data.system.load_avg[0].toFixed(2) }}</div><div class="label">Load 1m</div></div>
-        <div class="stat"><div class="value">{{ data.system.process_count }}</div><div class="label">Processes</div></div>
-        <div class="stat" v-if="data.system.battery_pct != null"><div class="value">{{ data.system.battery_pct.toFixed(0) }}%</div><div class="label">Battery</div></div>
+      <div class="card-body" style="display:flex;gap:20px;align-items:center;flex-wrap:wrap;padding:8px 16px;">
+        <span style="color:var(--fg2)">Uptime <strong style="color:var(--fg)">{{ formatUptime(data.system.uptime) }}</strong></span>
+        <span style="color:var(--fg2)">Load <strong style="color:var(--fg)">{{ data.system.load_avg[0].toFixed(2) }} {{ data.system.load_avg[1].toFixed(2) }} {{ data.system.load_avg[2].toFixed(2) }}</strong></span>
+        <span style="color:var(--fg2)">Processes <strong style="color:var(--fg)">{{ data.system.process_count }}</strong> ({{ data.system.thread_count }} threads)</span>
+        <span v-if="data.system.battery_pct != null" style="color:var(--fg2)">Battery <strong :style="{color: data.system.battery_pct > 20 ? 'var(--green)' : 'var(--red)'}">{{ data.system.battery_pct.toFixed(0) }}%</strong> {{ data.system.battery_state }}</span>
       </div>
     </div>
 
-    <!-- CPU + Memory gauges and charts -->
-    <div class="row row-2">
+    <!-- CPU + Memory + Temperatures -->
+    <div class="row row-3" :class="{'row-2': !data.system.temperatures || !data.system.temperatures.length}">
       <div class="card">
-        <div class="card-title">CPU<span>{{ data.system.cpu_global.toFixed(1) }}%</span></div>
+        <div class="card-title">CPU<span>{{ data.system.cpu_count }} cores &mdash; {{ data.system.cpu_global.toFixed(1) }}%</span></div>
         <div class="card-body">
           <div class="gauge-row">
             <span class="gauge-label">user</span>
@@ -152,16 +144,26 @@
           <div ref="memChart" class="chart-container"></div>
         </div>
       </div>
+      <!-- Temperatures -->
+      <div class="card" v-if="data.system.temperatures && data.system.temperatures.length">
+        <div class="card-title">Temperatures<span>{{ maxTemp(data.system.temperatures).toFixed(0) }}&deg;C peak</span></div>
+        <div class="card-body scroll-body" style="max-height:280px;">
+          <div v-for="[name,temp] in sortedTemps" :key="name" class="gauge-row" style="margin-bottom:4px">
+            <span class="gauge-label" style="width:100px;font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" :title="name">{{ name }}</span>
+            <div class="gauge-bar" style="height:16px">
+              <div class="gauge-fill" :style="{width: Math.min(temp/105*100,100)+'%', background: tempGradient(temp)}"></div>
+              <span class="gauge-text" style="font-size:10px" :style="{color: temp >= 80 ? '#fff' : 'var(--fg)'}">{{ temp.toFixed(0) }}&deg;C</span>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
 
-    <!-- Per-core CPU bars -->
+    <!-- Per-core CPU overlay chart -->
     <div class="card" v-if="data.system.cpus.length > 1">
       <div class="card-title">Per-Core CPU</div>
-      <div class="card-body" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:4px;">
-        <div v-for="(cpu,i) in data.system.cpus" :key="i" class="gauge-row" style="margin:0">
-          <span class="gauge-label" style="width:40px">{{ i }}</span>
-          <div class="gauge-bar" style="height:14px"><div class="gauge-fill" :style="{width:cpu.usage+'%',background:pctColor(cpu.usage)}"></div><span class="gauge-text" style="font-size:10px">{{ cpu.usage.toFixed(0) }}%</span></div>
-        </div>
+      <div class="card-body">
+        <div ref="perCoreChart" style="width:100%;height:200px;"></div>
       </div>
     </div>
 
@@ -219,16 +221,6 @@
               </template>
             </tbody>
           </table>
-        </div>
-      </div>
-    </div>
-
-    <!-- Temperatures -->
-    <div class="card" v-if="data.system.temperatures && data.system.temperatures.length">
-      <div class="card-title">Temperatures</div>
-      <div class="card-body" style="display:flex;flex-wrap:wrap;gap:12px;">
-        <div v-for="[name,temp] in data.system.temperatures" :key="name" class="tag" :style="{background:temp>80?'#3d1416':temp>60?'#3d2e00':'#0d351b',color:temp>80?'#f85149':temp>60?'#d29922':'#3fb950'}">
-          {{ name }}: {{ temp.toFixed(0) }}&deg;C
         </div>
       </div>
     </div>
@@ -387,6 +379,7 @@ createApp({
     const killResult = ref(null);
     const cpuChart = ref(null);
     const memChart = ref(null);
+    const perCoreChart = ref(null);
 
     // Generic sort state per table: { col, asc }
     const sorts = ref({
@@ -405,9 +398,12 @@ createApp({
       const s = sorts.value[table];
       return s.col === col ? (s.asc ? ' \u25B2' : ' \u25BC') : '';
     }
-    let cpuChartInst = null, memChartInst = null;
+    let cpuChartInst = null, memChartInst = null, perCoreChartInst = null;
     let cpuHistory = Array(60).fill(0);
     let memHistory = Array(60).fill(0);
+    let ramHistory = Array(60).fill(0);
+    let swapHistory = Array(60).fill(0);
+    let coreHistories = [];
     let timer = null;
 
     const memPct = computed(() => data.value ? ((data.value.system.memory.used / data.value.system.memory.total) * 100).toFixed(1) : '0');
@@ -502,6 +498,17 @@ createApp({
     function pctColor(v) { return v >= 90 ? '#f85149' : v >= 75 ? '#d29922' : '#3fb950'; }
     function pctClass(v) { return v >= 90 ? 'pct-red' : v >= 75 ? 'pct-orange' : 'pct-green'; }
     function diskPct(d) { return d.total ? ((d.used / d.total) * 100).toFixed(0) : '0'; }
+    function tempGradient(t) {
+      if (t >= 85) return '#f85149';
+      if (t >= 70) return '#d29922';
+      if (t >= 50) return '#58a6ff';
+      return '#3fb950';
+    }
+    function maxTemp(temps) { return temps.reduce((m, [,t]) => Math.max(m, t), 0); }
+    const sortedTemps = computed(() => {
+      if (!data.value || !data.value.system.temperatures) return [];
+      return [...data.value.system.temperatures].sort((a, b) => b[1] - a[1]);
+    });
 
     function toggleTheme() {
       darkMode.value = !darkMode.value;
@@ -513,7 +520,10 @@ createApp({
       document.documentElement.style.setProperty('--fg2', darkMode.value ? '#8b949e' : '#656d76');
     }
 
-    function makeChartOpt(label, color, history) {
+    const coreColors = ['#58a6ff','#f0883e','#3fb950','#bc8cff','#f85149','#79c0ff','#d29922','#da6ce6',
+      '#56d4dd','#e06c75','#98c379','#61afef','#c678dd','#e5c07b','#ff6b6b','#7ec8e3'];
+
+    function makeSingleChart(color, history) {
       return {
         animation: false,
         grid: { left:35, right:10, top:10, bottom:20 },
@@ -523,18 +533,56 @@ createApp({
       };
     }
 
+    function makeMemChart(ramHist, swapHist) {
+      return {
+        animation: false,
+        grid: { left:35, right:10, top:10, bottom:20 },
+        xAxis: { type:'category', data: Array(60).fill(''), show:false },
+        yAxis: { type:'value', min:0, max:100, splitLine:{lineStyle:{color:'#21262d'}}, axisLabel:{color:'#8b949e',fontSize:10} },
+        legend: { data:['RAM','Swap'], textStyle:{color:'#8b949e',fontSize:10}, top:0, right:10 },
+        series: [
+          { name:'RAM', type:'line', data:ramHist, smooth:true, symbol:'none', lineStyle:{width:1.5,color:'#bc8cff'}, areaStyle:{color:{type:'linear',x:0,y:0,x2:0,y2:1,colorStops:[{offset:0,color:'#bc8cff44'},{offset:1,color:'#bc8cff08'}]}} },
+          { name:'Swap', type:'line', data:swapHist, smooth:true, symbol:'none', lineStyle:{width:1.5,color:'#f0883e',type:'dashed'}, areaStyle:{color:{type:'linear',x:0,y:0,x2:0,y2:1,colorStops:[{offset:0,color:'#f0883e22'},{offset:1,color:'#f0883e04'}]}} },
+        ]
+      };
+    }
+
+    function makePerCoreChart(histories, count) {
+      return {
+        animation: false,
+        grid: { left:35, right:10, top:25, bottom:20 },
+        xAxis: { type:'category', data: Array(60).fill(''), show:false },
+        yAxis: { type:'value', min:0, max:100, splitLine:{lineStyle:{color:'#21262d'}}, axisLabel:{color:'#8b949e',fontSize:10} },
+        legend: { data: Array.from({length:count}, (_,i) => 'Core '+i), textStyle:{color:'#8b949e',fontSize:9}, top:0, type:'scroll', pageTextStyle:{color:'#8b949e'} },
+        series: histories.map((h,i) => ({
+          name: 'Core '+i, type:'line', data:[...h], smooth:true, symbol:'none',
+          lineStyle:{width:1.2, color:coreColors[i%coreColors.length]},
+        }))
+      };
+    }
+
     async function fetchData() {
       try {
         const resp = await fetch('/api/v1/all');
         data.value = await resp.json();
         connected.value = true;
         cpuHistory.push(data.value.system.cpu_global); cpuHistory.shift();
-        memHistory.push(parseFloat(memPct.value)); memHistory.shift();
+        const rp = parseFloat(memPct.value); ramHistory.push(rp); ramHistory.shift();
+        const sp = parseFloat(swapPct.value); swapHistory.push(sp); swapHistory.shift();
+        // Per-core histories
+        const nc = data.value.system.cpus.length;
+        while (coreHistories.length < nc) coreHistories.push(Array(60).fill(0));
+        for (let i = 0; i < nc; i++) {
+          coreHistories[i].push(data.value.system.cpus[i].usage);
+          coreHistories[i].shift();
+        }
         await nextTick();
         if (cpuChart.value && !cpuChartInst) cpuChartInst = echarts.init(cpuChart.value);
         if (memChart.value && !memChartInst) memChartInst = echarts.init(memChart.value);
-        if (cpuChartInst) cpuChartInst.setOption(makeChartOpt('CPU','#58a6ff',[...cpuHistory]));
-        if (memChartInst) memChartInst.setOption(makeChartOpt('Memory','#bc8cff',[...memHistory]));
+        if (perCoreChart.value && !perCoreChartInst) perCoreChartInst = echarts.init(perCoreChart.value);
+        if (cpuChartInst) cpuChartInst.setOption(makeSingleChart('#58a6ff',[...cpuHistory]));
+        if (memChartInst) memChartInst.setOption(makeMemChart([...ramHistory],[...swapHistory]));
+        if (perCoreChartInst) perCoreChartInst.setOption(makePerCoreChart(coreHistories, nc));
       } catch(e) { connected.value = false; }
     }
 
@@ -543,14 +591,14 @@ createApp({
       timer = setInterval(fetchData, refreshInterval.value);
     }
 
-    onMounted(() => { fetchData(); restartPolling(); window.addEventListener('resize', () => { cpuChartInst?.resize(); memChartInst?.resize(); }); });
+    onMounted(() => { fetchData(); restartPolling(); window.addEventListener('resize', () => { cpuChartInst?.resize(); memChartInst?.resize(); perCoreChartInst?.resize(); }); });
     onUnmounted(() => { if (timer) clearInterval(timer); });
 
-    return { data, connected, refreshInterval, darkMode, procFilter, cpuChart, memChart,
+    return { data, connected, refreshInterval, darkMode, procFilter, cpuChart, memChart, perCoreChart,
       sorts, doSort, sortIcon, sortedNets, sortedDisks, sortedDocker, sortedPorts, filteredProcs,
       killTarget, killResult, confirmKill, executeKill,
       memPct, swapPct, formatBytes, formatRate, formatUptime, pctColor, pctClass,
-      diskPct, toggleTheme, restartPolling };
+      diskPct, tempGradient, maxTemp, sortedTemps, toggleTheme, restartPolling };
   }
 }).mount('#app');
 </script>
