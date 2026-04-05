@@ -292,6 +292,7 @@ const app = createApp({
         sorts: { net:{col:'interface',asc:true}, disk:{col:'name',asc:true}, docker:{col:'name',asc:true}, port:{col:'port',asc:true}, proc:{col:'cpu_usage',asc:false} },
         _cpuEl: null, _memEl: null, _perCoreEl: null,
         _cpuChart: null, _memChart: null, _perCoreChart: null,
+        _firstLoad: true,
         _cpuHist: Array(60).fill(0), _ramHist: Array(60).fill(0), _swapHist: Array(60).fill(0),
         _coreHistories: [],
         _timer: null,
@@ -315,11 +316,19 @@ const app = createApp({
         const resp = await fetch(base + '/api/v1/all');
         p.data = await resp.json();
         p.connected = true;
-        p._cpuHist.push(p.data.system.cpu_global); p._cpuHist.shift();
-        const mp = p.data.system.memory.total ? (p.data.system.memory.used / p.data.system.memory.total * 100) : 0;
-        p._ramHist.push(mp); p._ramHist.shift();
-        const sp = p.data.system.memory.swap_total ? (p.data.system.memory.swap_used / p.data.system.memory.swap_total * 100) : 0;
-        p._swapHist.push(sp); p._swapHist.shift();
+        // Use server-side history on first load, then append incrementally
+        if (p.data.history && p._firstLoad) {
+          p._cpuHist = [...p.data.history.cpu];
+          p._ramHist = [...p.data.history.ram_pct];
+          p._swapHist = [...p.data.history.swap_pct];
+          p._firstLoad = false;
+        } else {
+          p._cpuHist.push(p.data.system.cpu_global); p._cpuHist.shift();
+          const mp = p.data.system.memory.total ? (p.data.system.memory.used / p.data.system.memory.total * 100) : 0;
+          p._ramHist.push(mp); p._ramHist.shift();
+          const sp = p.data.system.memory.swap_total ? (p.data.system.memory.swap_used / p.data.system.memory.swap_total * 100) : 0;
+          p._swapHist.push(sp); p._swapHist.shift();
+        }
         await nextTick();
         // Recreate charts if DOM element changed (e.g. after split)
         if (p._cpuChart && p._cpuChart.getDom() !== p._cpuEl) { p._cpuChart.dispose(); p._cpuChart = null; }
