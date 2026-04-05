@@ -42,10 +42,11 @@
   .stat .value { font-size:20px; font-weight:700; color:var(--accent); }
   .stat .label { font-size:11px; color:var(--fg2); margin-top:2px; }
   table { width:100%; border-collapse:collapse; font-size:12px; }
-  th { text-align:left; padding:6px 8px; color:var(--fg2); border-bottom:1px solid var(--border); font-weight:600; cursor:pointer; user-select:none; }
+  th { text-align:left; padding:6px 8px; color:var(--fg2); border-bottom:1px solid var(--border); font-weight:600; cursor:pointer; user-select:none; position:sticky; top:0; background:var(--bg2); z-index:1; }
   th:hover { color:var(--accent); }
   td { padding:5px 8px; border-bottom:1px solid var(--bg3); }
   tr:hover td { background:var(--bg3); }
+  .scroll-body { max-height:350px; overflow-y:auto; }
   .chart-container { width:100%; height:180px; }
   .pct-green { color:var(--green); } .pct-orange { color:var(--orange); } .pct-red { color:var(--red); }
   .tag { display:inline-block; padding:1px 6px; border-radius:3px; font-size:11px; }
@@ -168,11 +169,17 @@
     <div class="row row-2">
       <div class="card">
         <div class="card-title">Network</div>
-        <div class="card-body">
+        <div class="card-body scroll-body">
           <table>
-            <thead><tr><th>Interface</th><th>Rx Rate</th><th>Tx Rate</th><th>Rx Total</th><th>Tx Total</th></tr></thead>
+            <thead><tr>
+              <th @click="doSort('net','interface')">Interface{{ sortIcon('net','interface') }}</th>
+              <th @click="doSort('net','rx_rate')">Rx Rate{{ sortIcon('net','rx_rate') }}</th>
+              <th @click="doSort('net','tx_rate')">Tx Rate{{ sortIcon('net','tx_rate') }}</th>
+              <th @click="doSort('net','rx_bytes')">Rx Total{{ sortIcon('net','rx_bytes') }}</th>
+              <th @click="doSort('net','tx_bytes')">Tx Total{{ sortIcon('net','tx_bytes') }}</th>
+            </tr></thead>
             <tbody>
-              <tr v-for="net in data.system.networks" :key="net.interface">
+              <tr v-for="net in sortedNets" :key="net.interface">
                 <td class="fs-name">{{ net.interface }}</td>
                 <td>{{ formatRate(net.rx_rate) }}</td>
                 <td>{{ formatRate(net.tx_rate) }}</td>
@@ -185,12 +192,19 @@
       </div>
       <div class="card">
         <div class="card-title">Filesystems</div>
-        <div class="card-body">
+        <div class="card-body scroll-body">
           <table>
-            <thead><tr><th>Filesystem</th><th>Size</th><th>Used</th><th>Avail</th><th>Use%</th><th>Mounted on</th></tr></thead>
+            <thead><tr>
+              <th @click="doSort('disk','name')">Filesystem{{ sortIcon('disk','name') }}</th>
+              <th @click="doSort('disk','total')">Size{{ sortIcon('disk','total') }}</th>
+              <th @click="doSort('disk','used')">Used{{ sortIcon('disk','used') }}</th>
+              <th @click="doSort('disk','_avail')">Avail{{ sortIcon('disk','_avail') }}</th>
+              <th @click="doSort('disk','_pct')">Use%{{ sortIcon('disk','_pct') }}</th>
+              <th>Mounted on</th>
+            </tr></thead>
             <tbody>
-              <template v-for="disk in data.system.disks" :key="disk.name">
-                <tr v-if="disk.total > 0">
+              <template v-for="disk in sortedDisks" :key="disk.name">
+                <tr>
                   <td class="fs-name">{{ disk.name }}</td>
                   <td>{{ formatBytes(disk.total) }}</td>
                   <td>{{ formatBytes(disk.used) }}</td>
@@ -198,7 +212,7 @@
                   <td :class="pctClass(diskPct(disk))">{{ diskPct(disk) }}%</td>
                   <td>{{ disk.mount_points[0] }}</td>
                 </tr>
-                <tr v-for="(mp,j) in disk.mount_points.slice(1)" :key="disk.name+'-'+j" v-if="disk.total > 0">
+                <tr v-for="(mp,j) in disk.mount_points.slice(1)" :key="disk.name+'-'+j">
                   <td colspan="5"></td>
                   <td><span class="tree-indent">{{ j === disk.mount_points.length - 2 ? '\u2514\u2500' : '\u251C\u2500' }}</span>{{ mp }}</td>
                 </tr>
@@ -256,11 +270,19 @@
     <!-- Docker -->
     <div v-if="data.docker.length" class="card">
       <div class="card-title">Docker Containers<span>{{ data.docker.length }}</span></div>
-      <div class="card-body">
+      <div class="card-body scroll-body">
         <table>
-          <thead><tr><th>Name</th><th>Image</th><th>Status</th><th>CPU%</th><th>Memory</th><th>Net I/O</th><th>Ports</th></tr></thead>
+          <thead><tr>
+            <th @click="doSort('docker','name')">Name{{ sortIcon('docker','name') }}</th>
+            <th @click="doSort('docker','image')">Image{{ sortIcon('docker','image') }}</th>
+            <th @click="doSort('docker','state')">Status{{ sortIcon('docker','state') }}</th>
+            <th @click="doSort('docker','_cpu')">CPU%{{ sortIcon('docker','_cpu') }}</th>
+            <th @click="doSort('docker','_mem')">Memory{{ sortIcon('docker','_mem') }}</th>
+            <th>Net I/O</th>
+            <th>Ports</th>
+          </tr></thead>
           <tbody>
-            <tr v-for="c in data.docker" :key="c.id">
+            <tr v-for="c in sortedDocker" :key="c.id">
               <td class="fs-name">{{ c.name }}</td>
               <td>{{ c.image }}</td>
               <td><span class="tag" :class="c.state==='running'?'tag-running':'tag-exited'">{{ c.state }}</span></td>
@@ -277,18 +299,18 @@
     <!-- Listening Ports -->
     <div v-if="data.ports && data.ports.length" class="card">
       <div class="card-title">Listening Ports<span>{{ data.ports.length }}</span></div>
-      <div class="card-body" style="max-height:350px;overflow-y:auto">
+      <div class="card-body scroll-body">
         <table>
           <thead>
             <tr>
-              <th @click="sortPorts('port')">Port{{ portSort==='port' ? (portAsc?' \u25B2':' \u25BC') : '' }}</th>
-              <th>Proto</th>
-              <th @click="sortPorts('pid')">PID{{ portSort==='pid' ? (portAsc?' \u25B2':' \u25BC') : '' }}</th>
-              <th @click="sortPorts('name')">Name{{ portSort==='name' ? (portAsc?' \u25B2':' \u25BC') : '' }}</th>
-              <th>User</th>
-              <th>CPU%</th>
-              <th>MEM</th>
-              <th>Bind</th>
+              <th @click="doSort('port','port')">Port{{ sortIcon('port','port') }}</th>
+              <th @click="doSort('port','protocol')">Proto{{ sortIcon('port','protocol') }}</th>
+              <th @click="doSort('port','pid')">PID{{ sortIcon('port','pid') }}</th>
+              <th @click="doSort('port','name')">Name{{ sortIcon('port','name') }}</th>
+              <th @click="doSort('port','user')">User{{ sortIcon('port','user') }}</th>
+              <th @click="doSort('port','cpu_usage')">CPU%{{ sortIcon('port','cpu_usage') }}</th>
+              <th @click="doSort('port','memory_bytes')">MEM{{ sortIcon('port','memory_bytes') }}</th>
+              <th @click="doSort('port','bind_address')">Bind{{ sortIcon('port','bind_address') }}</th>
               <th>Command</th>
               <th style="width:50px"></th>
             </tr>
@@ -321,17 +343,17 @@
           <input v-model="procFilter" placeholder="Filter..." style="background:var(--bg3);border:1px solid var(--border);color:var(--fg);padding:2px 8px;border-radius:3px;font-size:11px;width:150px;">
         </span>
       </div>
-      <div class="card-body" style="max-height:400px;overflow-y:auto">
+      <div class="card-body scroll-body" style="max-height:400px">
         <table>
           <thead>
             <tr>
-              <th @click="sortProcs('pid')">PID{{ procSort==='pid' ? (procAsc?' \u25B2':' \u25BC') : '' }}</th>
-              <th @click="sortProcs('name')">Name{{ procSort==='name' ? (procAsc?' \u25B2':' \u25BC') : '' }}</th>
-              <th @click="sortProcs('user')">User{{ procSort==='user' ? (procAsc?' \u25B2':' \u25BC') : '' }}</th>
-              <th @click="sortProcs('cpu_usage')">CPU%{{ procSort==='cpu_usage' ? (procAsc?' \u25B2':' \u25BC') : '' }}</th>
-              <th @click="sortProcs('memory_usage')">MEM%{{ procSort==='memory_usage' ? (procAsc?' \u25B2':' \u25BC') : '' }}</th>
-              <th @click="sortProcs('memory_bytes')">MEM{{ procSort==='memory_bytes' ? (procAsc?' \u25B2':' \u25BC') : '' }}</th>
-              <th>Status</th>
+              <th @click="doSort('proc','pid')">PID{{ sortIcon('proc','pid') }}</th>
+              <th @click="doSort('proc','name')">Name{{ sortIcon('proc','name') }}</th>
+              <th @click="doSort('proc','user')">User{{ sortIcon('proc','user') }}</th>
+              <th @click="doSort('proc','cpu_usage')">CPU%{{ sortIcon('proc','cpu_usage') }}</th>
+              <th @click="doSort('proc','memory_usage')">MEM%{{ sortIcon('proc','memory_usage') }}</th>
+              <th @click="doSort('proc','memory_bytes')">MEM{{ sortIcon('proc','memory_bytes') }}</th>
+              <th @click="doSort('proc','status')">Status{{ sortIcon('proc','status') }}</th>
             </tr>
           </thead>
           <tbody>
@@ -361,14 +383,28 @@ createApp({
     const refreshInterval = ref(2000);
     const darkMode = ref(true);
     const procFilter = ref('');
-    const procSort = ref('cpu_usage');
-    const procAsc = ref(false);
-    const portSort = ref('port');
-    const portAsc = ref(true);
     const killTarget = ref(null);
     const killResult = ref(null);
     const cpuChart = ref(null);
     const memChart = ref(null);
+
+    // Generic sort state per table: { col, asc }
+    const sorts = ref({
+      net: { col: 'interface', asc: true },
+      disk: { col: 'name', asc: true },
+      docker: { col: 'name', asc: true },
+      port: { col: 'port', asc: true },
+      proc: { col: 'cpu_usage', asc: false },
+    });
+    function doSort(table, col) {
+      const s = sorts.value[table];
+      if (s.col === col) s.asc = !s.asc;
+      else { s.col = col; s.asc = table === 'proc' ? false : true; }
+    }
+    function sortIcon(table, col) {
+      const s = sorts.value[table];
+      return s.col === col ? (s.asc ? ' \u25B2' : ' \u25BC') : '';
+    }
     let cpuChartInst = null, memChartInst = null;
     let cpuHistory = Array(60).fill(0);
     let memHistory = Array(60).fill(0);
@@ -380,6 +416,50 @@ createApp({
       return ((data.value.system.memory.swap_used / data.value.system.memory.swap_total) * 100).toFixed(1);
     });
 
+    // Generic sorter: handles virtual columns prefixed with _
+    function genericSort(arr, table, getVal) {
+      const s = sorts.value[table];
+      const sorted = [...arr];
+      sorted.sort((a, b) => {
+        let va = getVal ? getVal(a, s.col) : a[s.col];
+        let vb = getVal ? getVal(b, s.col) : b[s.col];
+        if (va == null) va = 0; if (vb == null) vb = 0;
+        if (typeof va === 'string') { va = va.toLowerCase(); vb = (vb+'').toLowerCase(); }
+        if (va < vb) return s.asc ? -1 : 1;
+        if (va > vb) return s.asc ? 1 : -1;
+        return 0;
+      });
+      return sorted;
+    }
+
+    const sortedNets = computed(() => {
+      if (!data.value) return [];
+      return genericSort(data.value.system.networks, 'net');
+    });
+
+    const sortedDisks = computed(() => {
+      if (!data.value) return [];
+      return genericSort(data.value.system.disks.filter(d => d.total > 0), 'disk', (d, col) => {
+        if (col === '_avail') return d.total - d.used;
+        if (col === '_pct') return d.total ? d.used / d.total : 0;
+        return d[col];
+      });
+    });
+
+    const sortedDocker = computed(() => {
+      if (!data.value) return [];
+      return genericSort(data.value.docker, 'docker', (c, col) => {
+        if (col === '_cpu') return c.cpu_percent || c.cpu_pct || 0;
+        if (col === '_mem') return c.memory_used || c.mem_usage || 0;
+        return c[col];
+      });
+    });
+
+    const sortedPorts = computed(() => {
+      if (!data.value || !data.value.ports) return [];
+      return genericSort(data.value.ports, 'port');
+    });
+
     const filteredProcs = computed(() => {
       if (!data.value) return [];
       let procs = [...data.value.system.processes];
@@ -387,38 +467,8 @@ createApp({
         const f = procFilter.value.toLowerCase();
         procs = procs.filter(p => p.name.toLowerCase().includes(f) || p.user.toLowerCase().includes(f) || String(p.pid).includes(f));
       }
-      procs.sort((a, b) => {
-        let va = a[procSort.value], vb = b[procSort.value];
-        if (typeof va === 'string') { va = va.toLowerCase(); vb = vb.toLowerCase(); }
-        if (va < vb) return procAsc.value ? -1 : 1;
-        if (va > vb) return procAsc.value ? 1 : -1;
-        return 0;
-      });
-      return procs.slice(0, 100);
+      return genericSort(procs, 'proc').slice(0, 100);
     });
-
-    function sortProcs(col) {
-      if (procSort.value === col) procAsc.value = !procAsc.value;
-      else { procSort.value = col; procAsc.value = false; }
-    }
-
-    const sortedPorts = computed(() => {
-      if (!data.value || !data.value.ports) return [];
-      let ports = [...data.value.ports];
-      ports.sort((a, b) => {
-        let va = a[portSort.value], vb = b[portSort.value];
-        if (typeof va === 'string') { va = va.toLowerCase(); vb = vb.toLowerCase(); }
-        if (va < vb) return portAsc.value ? -1 : 1;
-        if (va > vb) return portAsc.value ? 1 : -1;
-        return 0;
-      });
-      return ports;
-    });
-
-    function sortPorts(col) {
-      if (portSort.value === col) portAsc.value = !portAsc.value;
-      else { portSort.value = col; portAsc.value = true; }
-    }
 
     function confirmKill(p) { killTarget.value = p; killResult.value = null; }
 
@@ -496,9 +546,10 @@ createApp({
     onMounted(() => { fetchData(); restartPolling(); window.addEventListener('resize', () => { cpuChartInst?.resize(); memChartInst?.resize(); }); });
     onUnmounted(() => { if (timer) clearInterval(timer); });
 
-    return { data, connected, refreshInterval, darkMode, procFilter, procSort, procAsc, cpuChart, memChart,
-      portSort, portAsc, sortedPorts, sortPorts, killTarget, killResult, confirmKill, executeKill,
-      memPct, swapPct, filteredProcs, sortProcs, formatBytes, formatRate, formatUptime, pctColor, pctClass,
+    return { data, connected, refreshInterval, darkMode, procFilter, cpuChart, memChart,
+      sorts, doSort, sortIcon, sortedNets, sortedDisks, sortedDocker, sortedPorts, filteredProcs,
+      killTarget, killResult, confirmKill, executeKill,
+      memPct, swapPct, formatBytes, formatRate, formatUptime, pctColor, pctClass,
       diskPct, toggleTheme, restartPolling };
   }
 }).mount('#app');
