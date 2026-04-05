@@ -171,6 +171,7 @@ pub struct App {
     pub last_disk_stats: HashMap<String, (u64, u64)>,
     pub rapl_state: RaplState,
     pub last_update: Instant,
+    refresh_count: u64,
 
     // UI state
     pub running: bool,
@@ -249,6 +250,7 @@ impl App {
             last_disk_stats: HashMap::new(),
             rapl_state: RaplState::default(),
             last_update: Instant::now(),
+            refresh_count: u64::MAX,  // ensures first refresh triggers all collections
             running: true,
             show_help: false,
             active_panel: ActivePanel::CpuProcesses,
@@ -287,15 +289,23 @@ impl App {
         Ok(app)
     }
 
-    /// Refresh all metrics.
+    /// Refresh all metrics with differential frequency to minimize overhead.
     pub fn refresh_all(&mut self) -> anyhow::Result<()> {
         let elapsed = self.last_update.elapsed();
         self.last_update = Instant::now();
+        self.refresh_count = self.refresh_count.wrapping_add(1);
 
-        self.system.refresh_all();
+        // Every cycle: CPU + memory + processes + networks (fast-changing)
+        self.system
+            .refresh_processes(sysinfo::ProcessesToUpdate::All, true);
+        self.system.refresh_memory();
         self.networks.refresh();
-        self.disks.refresh();
-        self.components.refresh();
+
+        // Every 5 cycles: disks, components/temps, battery
+        if self.refresh_count % 5 == 0 {
+            self.disks.refresh();
+            self.components.refresh();
+        }
 
         self.system_metrics = collect_system_metrics(
             &self.system,
@@ -308,12 +318,14 @@ impl App {
             elapsed,
         );
 
+        // Every cycle: GPU (if enabled)
         if self.gpu_enabled {
             self.gpu_metrics = collect_gpu_metrics(&self.gpu_handle, &self.system, &self.users);
         }
 
+        // Every 5 cycles: Docker
         #[cfg(feature = "docker")]
-        if self.docker_enabled {
+        if self.docker_enabled && self.refresh_count % 5 == 0 {
             self.docker_containers = collect_docker_metrics(&self.docker_handle);
             collect_docker_stats(
                 &self.docker_handle,
@@ -322,9 +334,13 @@ impl App {
             );
         }
 
+        // Every cycle: RAPL power (cheap sysfs reads)
         self.system_metrics.power = collect_power_metrics(&mut self.rapl_state, elapsed);
 
-        self.port_processes = collect_port_processes(&self.system, &self.users);
+        // Every 5 cycles: port scanning (expensive /proc/[pid]/fd iteration)
+        if self.refresh_count % 5 == 0 {
+            self.port_processes = collect_port_processes(&self.system, &self.users);
+        }
 
         self.update_history();
         self.check_alerts();
