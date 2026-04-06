@@ -4,7 +4,6 @@ use humansize::{format_size, BINARY};
 use ratatui::{
     layout::{Margin, Rect},
     style::{Color, Modifier, Style},
-    text::Line,
     widgets::{
         Block, Borders, Cell, Row, Scrollbar, ScrollbarOrientation, ScrollbarState,
         Table, block::BorderType,
@@ -14,7 +13,7 @@ use ratatui::{
 
 use crate::app::App;
 use crate::types::{ActivePanel, SortColumn};
-use crate::utils::{truncate_string, usage_color};
+use crate::utils::usage_color;
 
 /// Render the CPU process table.
 pub fn render_cpu_processes(frame: &mut Frame, area: Rect, app: &mut App) {

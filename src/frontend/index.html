@@ -187,20 +187,25 @@
             <div :ref="el => { node.pane._memEl = el }" class="chart-container"></div>
           </div>
         </div>
-        <!-- Sensors — normal/full, in the same row -->
+        <!-- Sensors — normal/full, compact heatmap grid -->
         <div class="card" v-if="$root.hasSensors(node.pane) && node.pane.displayMode !== 'minimal'">
           <div class="card-title">Sensors</div>
-          <div class="card-body scroll-body" style="max-height:220px;">
+          <div class="card-body" style="max-height:220px;overflow-y:auto;">
             <template v-if="node.pane.data.system.power && node.pane.data.system.power.available">
-              <div v-for="d in node.pane.data.system.power.domains" :key="d.name" class="gauge-row" style="margin-bottom:3px">
-                <span class="gauge-label" style="width:80px;font-size:10px">&#9889; {{ d.name }}</span>
-                <div class="gauge-bar" style="height:14px"><div class="gauge-fill" :style="{width: d.max_power_w ? Math.min(d.power_w/d.max_power_w*100,100)+'%' : '0%', background:'var(--orange)'}"></div><span class="gauge-text" style="font-size:9px">{{ d.power_w.toFixed(1) }}W</span></div>
+              <div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:6px">
+                <div v-for="d in node.pane.data.system.power.domains" :key="d.name"
+                  :style="{background:'var(--bg3)',border:'1px solid var(--border)',borderRadius:'4px',padding:'4px 8px',fontSize:'10px',minWidth:'70px',textAlign:'center',borderBottom:'2px solid var(--orange)'}">
+                  <div style="color:var(--fg2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">&#9889; {{ d.name }}</div>
+                  <div style="font-weight:700;color:var(--orange);font-size:13px">{{ d.power_w.toFixed(1) }}<span style="font-size:9px;font-weight:400">W</span></div>
+                </div>
               </div>
-              <div v-if="node.pane.data.system.temperatures && node.pane.data.system.temperatures.length" style="border-top:1px solid var(--border);margin:4px 0"></div>
             </template>
-            <div v-for="[name,temp] in $root.sortTemps(node.pane)" :key="name" class="gauge-row" style="margin-bottom:3px">
-              <span class="gauge-label" style="width:80px;font-size:10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ name }}</span>
-              <div class="gauge-bar" style="height:14px"><div class="gauge-fill" :style="{width:Math.min(temp/105*100,100)+'%',background:$root.tempGrad(temp)}"></div><span class="gauge-text" style="font-size:9px">{{ temp.toFixed(0) }}&deg;C</span></div>
+            <div v-if="node.pane.data.system.temperatures && node.pane.data.system.temperatures.length" style="display:flex;flex-wrap:wrap;gap:4px">
+              <div v-for="[name,temp] in $root.sortTemps(node.pane)" :key="name"
+                :style="{background:'var(--bg3)',border:'1px solid var(--border)',borderRadius:'4px',padding:'4px 8px',fontSize:'10px',minWidth:'70px',textAlign:'center',borderBottom:'2px solid '+$root.tempGrad(temp)}">
+                <div style="color:var(--fg2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:80px" :title="name">{{ name }}</div>
+                <div :style="{fontWeight:700,color:$root.tempGrad(temp),fontSize:'13px'}">{{ temp.toFixed(0) }}<span style="font-size:9px;font-weight:400">&deg;C</span></div>
+              </div>
             </div>
           </div>
         </div>
@@ -213,11 +218,9 @@
       <!-- Network + Disks — normal/full -->
       <div class="row row-2" v-if="node.pane.displayMode !== 'minimal'">
         <div class="card">
-          <div class="card-title">Network</div>
-          <div class="card-body scroll-body" style="max-height:150px;">
-            <table><thead><tr><th @click="$root.pSort(node.pane,'net','interface')">Iface{{ $root.sI(node.pane,'net','interface') }}</th><th @click="$root.pSort(node.pane,'net','rx_rate')">Rx{{ $root.sI(node.pane,'net','rx_rate') }}</th><th @click="$root.pSort(node.pane,'net','tx_rate')">Tx{{ $root.sI(node.pane,'net','tx_rate') }}</th></tr></thead><tbody>
-              <tr v-for="n in $root.pSorted(node.pane,'net',node.pane.data.system.networks)" :key="n.interface"><td class="fs-name">{{ n.interface }}</td><td>{{ $root.formatRate(n.rx_rate) }}</td><td>{{ $root.formatRate(n.tx_rate) }}</td></tr>
-            </tbody></table>
+          <div class="card-title">Network<span style="font-weight:400;text-transform:none;letter-spacing:0"><span style="color:var(--green)">&blacktriangledown; Rx</span> <span style="color:var(--red)">&blacktriangle; Tx</span></span></div>
+          <div class="card-body">
+            <div :ref="el => { node.pane._netEl = el }" style="width:100%;height:130px;"></div>
           </div>
         </div>
         <div class="card">
@@ -260,6 +263,10 @@
           <tr v-for="p in $root.filtProcs(node.pane)" :key="p.pid"><td>{{ p.pid }}</td><td>{{ p.name }}</td><td :class="$root.pctClass(p.cpu_usage)">{{ p.cpu_usage.toFixed(1) }}</td><td>{{ $root.formatBytes(p.memory_bytes) }}</td></tr>
         </tbody></table></div>
       </div>
+      <!-- Hints — full only -->
+      <div class="hint-bar" v-if="node.pane.displayMode === 'full' && $root.paneHints(node.pane).length">
+        <div v-for="h in $root.paneHints(node.pane)" :key="h"><span>&#9432;</span>{{ h }}</div>
+      </div>
     </div>
     <div v-else class="pane-content"><div class="loading">Connecting to {{ node.pane.endpoint }}...</div></div>
   </div>
@@ -290,10 +297,11 @@ const app = createApp({
         data: null, connected: false, procFilter: '',
         displayMode: 'full',
         sorts: { net:{col:'interface',asc:true}, disk:{col:'name',asc:true}, docker:{col:'name',asc:true}, port:{col:'port',asc:true}, proc:{col:'cpu_usage',asc:false} },
-        _cpuEl: null, _memEl: null, _perCoreEl: null,
-        _cpuChart: null, _memChart: null, _perCoreChart: null,
+        _cpuEl: null, _memEl: null, _perCoreEl: null, _netEl: null,
+        _cpuChart: null, _memChart: null, _perCoreChart: null, _netChart: null,
         _firstLoad: true,
         _cpuHist: Array(60).fill(0), _ramHist: Array(60).fill(0), _swapHist: Array(60).fill(0),
+        _rxHist: Array(60).fill(0), _txHist: Array(60).fill(0),
         _coreHistories: [],
         _timer: null,
       });
@@ -307,6 +315,7 @@ const app = createApp({
       if (p._cpuChart) { p._cpuChart.dispose(); p._cpuChart = null; }
       if (p._memChart) { p._memChart.dispose(); p._memChart = null; }
       if (p._perCoreChart) { p._perCoreChart.dispose(); p._perCoreChart = null; }
+      if (p._netChart) { p._netChart.dispose(); p._netChart = null; }
       delete allPanes[p.id];
     }
 
@@ -334,16 +343,24 @@ const app = createApp({
         if (p._cpuChart && p._cpuChart.getDom() !== p._cpuEl) { p._cpuChart.dispose(); p._cpuChart = null; }
         if (p._memChart && p._memChart.getDom() !== p._memEl) { p._memChart.dispose(); p._memChart = null; }
         if (p._perCoreChart && p._perCoreChart.getDom() !== p._perCoreEl) { p._perCoreChart.dispose(); p._perCoreChart = null; }
+        if (p._netChart && p._netChart.getDom() !== p._netEl) { p._netChart.dispose(); p._netChart = null; }
         if (p._cpuEl && !p._cpuChart) p._cpuChart = echarts.init(p._cpuEl);
         if (p._memEl && !p._memChart) p._memChart = echarts.init(p._memEl);
         if (p._perCoreEl && !p._perCoreChart) p._perCoreChart = echarts.init(p._perCoreEl);
+        if (p._netEl && !p._netChart) p._netChart = echarts.init(p._netEl);
         // Per-core histories
         const nc = p.data.system.cpus.length;
         while (p._coreHistories.length < nc) p._coreHistories.push(Array(60).fill(0));
         for (let i = 0; i < nc; i++) { p._coreHistories[i].push(p.data.system.cpus[i].usage); p._coreHistories[i].shift(); }
+        // Network throughput history (sum all interfaces)
+        const totalRx = p.data.system.networks.reduce((s,n) => s + (n.rx_rate||0), 0);
+        const totalTx = p.data.system.networks.reduce((s,n) => s + (n.tx_rate||0), 0);
+        p._rxHist.push(totalRx / 1024); p._rxHist.shift();
+        p._txHist.push(totalTx / 1024); p._txHist.shift();
         if (p._cpuChart) p._cpuChart.setOption(lineChart('#58a6ff', [...p._cpuHist]));
         if (p._memChart) p._memChart.setOption(dualChart([...p._ramHist], [...p._swapHist]));
         if (p._perCoreChart) p._perCoreChart.setOption(perCoreChart(p._coreHistories, nc));
+        if (p._netChart) p._netChart.setOption(networkChart([...p._rxHist], [...p._txHist]));
       } catch(e) { p.connected = false; }
     }
 
@@ -529,6 +546,18 @@ const app = createApp({
         ] };
     }
 
+    function networkChart(rx, tx) {
+      const maxVal = Math.max(0.1, ...rx, ...tx);
+      const fmtRate = (v) => { if (v >= 1048576) return (v/1048576).toFixed(1)+'GB/s'; if (v >= 1024) return (v/1024).toFixed(1)+'MB/s'; return v.toFixed(0)+'KB/s'; };
+      return { animation:false, grid:{left:55,right:8,top:22,bottom:16}, xAxis:{type:'category',data:Array(60).fill(''),show:false},
+        yAxis:{type:'value',min:0,splitLine:{lineStyle:{color:'#21262d'}},axisLabel:{color:'#8b949e',fontSize:9,formatter:v=>fmtRate(v)}},
+        legend:{data:['\u25BC Rx','\u25B2 Tx'],textStyle:{color:'#8b949e',fontSize:9},top:0,right:8},
+        series:[
+          {name:'\u25BC Rx',type:'line',data:rx,smooth:true,symbol:'none',lineStyle:{width:1.5,color:'#3fb950'},areaStyle:{color:{type:'linear',x:0,y:0,x2:0,y2:1,colorStops:[{offset:0,color:'#3fb95044'},{offset:1,color:'#3fb95008'}]}}},
+          {name:'\u25B2 Tx',type:'line',data:tx,smooth:true,symbol:'none',lineStyle:{width:1.5,color:'#f85149'},areaStyle:{color:{type:'linear',x:0,y:0,x2:0,y2:1,colorStops:[{offset:0,color:'#f8514944'},{offset:1,color:'#f8514908'}]}}},
+        ] };
+    }
+
     function toggleTheme() {
       darkMode.value = !darkMode.value; const d = darkMode.value;
       document.documentElement.style.setProperty('--bg', d?'#0d1117':'#f6f8fa');
@@ -542,7 +571,7 @@ const app = createApp({
     onMounted(() => {
       const p = createPane(window.location.origin);
       tree.value = reactive({ type: 'leaf', pane: p });
-      window.addEventListener('resize', () => { Object.values(allPanes).forEach(p => { p._cpuChart?.resize(); p._memChart?.resize(); p._perCoreChart?.resize(); }); });
+      window.addEventListener('resize', () => { Object.values(allPanes).forEach(p => { p._cpuChart?.resize(); p._memChart?.resize(); p._perCoreChart?.resize(); p._netChart?.resize(); }); });
     });
     onUnmounted(() => { Object.values(allPanes).forEach(p => stopPolling(p)); });
 

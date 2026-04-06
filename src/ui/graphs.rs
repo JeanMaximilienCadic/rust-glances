@@ -119,13 +119,6 @@ pub fn render_gpu_graphs(frame: &mut Frame, area: Rect, app: &App) {
         Color::Rgb(100, 200, 255),
         Color::Rgb(255, 100, 100),
     ];
-    let gpu_fill_colors = [
-        Color::Rgb(40, 120, 60),
-        Color::Rgb(140, 100, 30),
-        Color::Rgb(50, 100, 140),
-        Color::Rgb(140, 50, 50),
-    ];
-
     let data_vecs: Vec<Vec<(f64, f64)>> = history.iter()
         .map(|h| h.iter().enumerate().map(|(i, &v)| (i as f64, v)).collect())
         .collect();
