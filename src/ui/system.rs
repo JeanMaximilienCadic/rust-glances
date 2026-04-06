@@ -14,7 +14,6 @@ use crate::app::App;
 // Layout constants for column alignment
 const LABEL_W: usize = 5;  // "CPU  ", "MEM  ", etc.
 const PCT_W: usize = 7;    // " 15.3%"
-const COL_W: usize = 7;    // fixed stat column width
 
 fn gradient_color_for(pct: f64) -> Color {
     if pct >= 90.0 { Color::Rgb(255, 80, 80) }
