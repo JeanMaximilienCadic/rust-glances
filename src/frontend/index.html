@@ -58,6 +58,7 @@
   td { padding:3px 6px; border-bottom:1px solid var(--bg3); }
   tr:hover td { background:var(--bg3); }
   .scroll-body { max-height:250px; overflow-y:auto; }
+  .scroll-body th { top:-8px; box-shadow:0 1px 0 var(--border); }
   .chart-container { width:100%; height:120px; }
   .pct-green { color:var(--green); } .pct-orange { color:var(--orange); } .pct-red { color:var(--red); }
   .tag { display:inline-block; padding:1px 4px; border-radius:3px; font-size:10px; }
@@ -176,7 +177,7 @@
           <div class="card-body">
             <div class="gauge-row"><span class="gauge-label">user</span><div class="gauge-bar"><div class="gauge-fill" :style="{width:node.pane.data.system.cpu_breakdown.user+'%',background:'#58a6ff'}"></div><span class="gauge-text">{{ node.pane.data.system.cpu_breakdown.user.toFixed(1) }}%</span></div></div>
             <div class="gauge-row"><span class="gauge-label">system</span><div class="gauge-bar"><div class="gauge-fill" :style="{width:node.pane.data.system.cpu_breakdown.system+'%',background:'#f0883e'}"></div><span class="gauge-text">{{ node.pane.data.system.cpu_breakdown.system.toFixed(1) }}%</span></div></div>
-            <div :ref="el => { node.pane._cpuEl = el }" class="chart-container"></div>
+            <div :ref="el => { node.pane._perCoreEl = el }" class="chart-container"></div>
           </div>
         </div>
         <div class="card">
@@ -210,17 +211,12 @@
           </div>
         </div>
       </div>
-      <!-- Per-core CPU overlay chart — normal/full -->
-      <div class="card" v-if="node.pane.data.system.cpus.length > 1 && node.pane.displayMode !== 'minimal'">
-        <div class="card-title">Per-Core CPU</div>
-        <div class="card-body"><div :ref="el => { node.pane._perCoreEl = el }" style="width:100%;height:150px;"></div></div>
-      </div>
       <!-- Network + Disks — normal/full -->
       <div class="row row-2" v-if="node.pane.displayMode !== 'minimal'">
         <div class="card">
           <div class="card-title">Network<span style="font-weight:400;text-transform:none;letter-spacing:0"><span style="color:var(--green)">&blacktriangledown; Rx</span> <span style="color:var(--red)">&blacktriangle; Tx</span></span></div>
           <div class="card-body">
-            <div :ref="el => { node.pane._netEl = el }" style="width:100%;height:130px;"></div>
+            <div :ref="el => { node.pane._netEl = el }" class="chart-container"></div>
           </div>
         </div>
         <div class="card">
@@ -297,11 +293,11 @@ const app = createApp({
         data: null, connected: false, procFilter: '',
         displayMode: 'full',
         sorts: { net:{col:'interface',asc:true}, disk:{col:'name',asc:true}, docker:{col:'name',asc:true}, port:{col:'port',asc:true}, proc:{col:'cpu_usage',asc:false} },
-        _cpuEl: null, _memEl: null, _perCoreEl: null, _netEl: null,
-        _cpuChart: null, _memChart: null, _perCoreChart: null, _netChart: null,
+        _memEl: null, _perCoreEl: null, _netEl: null,
+        _memChart: null, _perCoreChart: null, _netChart: null,
         _firstLoad: true,
-        _cpuHist: Array(60).fill(0), _ramHist: Array(60).fill(0), _swapHist: Array(60).fill(0),
-        _rxHist: Array(60).fill(0), _txHist: Array(60).fill(0),
+        _ramHist: Array(60).fill(0), _swapHist: Array(60).fill(0),
+        _netIfHistories: {}, _netIfNames: [],
         _coreHistories: [],
         _timer: null,
       });
@@ -312,7 +308,6 @@ const app = createApp({
 
     function destroyPane(p) {
       stopPolling(p);
-      if (p._cpuChart) { p._cpuChart.dispose(); p._cpuChart = null; }
       if (p._memChart) { p._memChart.dispose(); p._memChart = null; }
       if (p._perCoreChart) { p._perCoreChart.dispose(); p._perCoreChart = null; }
       if (p._netChart) { p._netChart.dispose(); p._netChart = null; }
@@ -327,12 +322,10 @@ const app = createApp({
         p.connected = true;
         // Use server-side history on first load, then append incrementally
         if (p.data.history && p._firstLoad) {
-          p._cpuHist = [...p.data.history.cpu];
           p._ramHist = [...p.data.history.ram_pct];
           p._swapHist = [...p.data.history.swap_pct];
           p._firstLoad = false;
         } else {
-          p._cpuHist.push(p.data.system.cpu_global); p._cpuHist.shift();
           const mp = p.data.system.memory.total ? (p.data.system.memory.used / p.data.system.memory.total * 100) : 0;
           p._ramHist.push(mp); p._ramHist.shift();
           const sp = p.data.system.memory.swap_total ? (p.data.system.memory.swap_used / p.data.system.memory.swap_total * 100) : 0;
@@ -340,11 +333,9 @@ const app = createApp({
         }
         await nextTick();
         // Recreate charts if DOM element changed (e.g. after split)
-        if (p._cpuChart && p._cpuChart.getDom() !== p._cpuEl) { p._cpuChart.dispose(); p._cpuChart = null; }
         if (p._memChart && p._memChart.getDom() !== p._memEl) { p._memChart.dispose(); p._memChart = null; }
         if (p._perCoreChart && p._perCoreChart.getDom() !== p._perCoreEl) { p._perCoreChart.dispose(); p._perCoreChart = null; }
         if (p._netChart && p._netChart.getDom() !== p._netEl) { p._netChart.dispose(); p._netChart = null; }
-        if (p._cpuEl && !p._cpuChart) p._cpuChart = echarts.init(p._cpuEl);
         if (p._memEl && !p._memChart) p._memChart = echarts.init(p._memEl);
         if (p._perCoreEl && !p._perCoreChart) p._perCoreChart = echarts.init(p._perCoreEl);
         if (p._netEl && !p._netChart) p._netChart = echarts.init(p._netEl);
@@ -352,15 +343,16 @@ const app = createApp({
         const nc = p.data.system.cpus.length;
         while (p._coreHistories.length < nc) p._coreHistories.push(Array(60).fill(0));
         for (let i = 0; i < nc; i++) { p._coreHistories[i].push(p.data.system.cpus[i].usage); p._coreHistories[i].shift(); }
-        // Network throughput history (sum all interfaces)
-        const totalRx = p.data.system.networks.reduce((s,n) => s + (n.rx_rate||0), 0);
-        const totalTx = p.data.system.networks.reduce((s,n) => s + (n.tx_rate||0), 0);
-        p._rxHist.push(totalRx / 1024); p._rxHist.shift();
-        p._txHist.push(totalTx / 1024); p._txHist.shift();
-        if (p._cpuChart) p._cpuChart.setOption(lineChart('#58a6ff', [...p._cpuHist]));
+        // Per-interface network throughput histories
+        p._netIfNames = p.data.system.networks.map(n => n.interface);
+        for (const net of p.data.system.networks) {
+          if (!p._netIfHistories[net.interface]) p._netIfHistories[net.interface] = { rx: Array(60).fill(0), tx: Array(60).fill(0) };
+          p._netIfHistories[net.interface].rx.push((net.rx_rate||0) / 1024); p._netIfHistories[net.interface].rx.shift();
+          p._netIfHistories[net.interface].tx.push((net.tx_rate||0) / 1024); p._netIfHistories[net.interface].tx.shift();
+        }
         if (p._memChart) p._memChart.setOption(dualChart([...p._ramHist], [...p._swapHist]));
         if (p._perCoreChart) p._perCoreChart.setOption(perCoreChart(p._coreHistories, nc));
-        if (p._netChart) p._netChart.setOption(networkChart([...p._rxHist], [...p._txHist]));
+        if (p._netChart) p._netChart.setOption(perIfNetChart(p._netIfHistories, p._netIfNames));
       } catch(e) { p.connected = false; }
     }
 
@@ -524,18 +516,13 @@ const app = createApp({
       '#56d4dd','#e06c75','#98c379','#61afef','#c678dd','#e5c07b','#ff6b6b','#7ec8e3'];
 
     function perCoreChart(histories, count) {
-      return { animation:false, grid:{left:30,right:8,top:22,bottom:16}, xAxis:{type:'category',data:Array(60).fill(''),show:false},
+      return { animation:false, grid:{left:30,right:8,top:32,bottom:16}, xAxis:{type:'category',data:Array(60).fill(''),show:false},
         yAxis:{type:'value',min:0,max:100,splitLine:{lineStyle:{color:'#21262d'}},axisLabel:{color:'#8b949e',fontSize:9}},
         legend:{data:Array.from({length:count},(_,i)=>'C'+i),textStyle:{color:'#8b949e',fontSize:8},top:0,type:'scroll',pageTextStyle:{color:'#8b949e'}},
         series:histories.map((h,i)=>({name:'C'+i,type:'line',data:[...h],smooth:true,symbol:'none',lineStyle:{width:1.2,color:coreColors[i%coreColors.length]}}))
       };
     }
 
-    function lineChart(color, data) {
-      return { animation:false, grid:{left:30,right:8,top:8,bottom:16}, xAxis:{type:'category',data:Array(60).fill(''),show:false},
-        yAxis:{type:'value',min:0,max:100,splitLine:{lineStyle:{color:'#21262d'}},axisLabel:{color:'#8b949e',fontSize:9}},
-        series:[{type:'line',data,smooth:true,symbol:'none',lineStyle:{width:1.5,color},areaStyle:{color:{type:'linear',x:0,y:0,x2:0,y2:1,colorStops:[{offset:0,color:color+'44'},{offset:1,color:color+'08'}]}}}] };
-    }
     function dualChart(ram, swap) {
       return { animation:false, grid:{left:30,right:8,top:18,bottom:16}, xAxis:{type:'category',data:Array(60).fill(''),show:false},
         yAxis:{type:'value',min:0,max:100,splitLine:{lineStyle:{color:'#21262d'}},axisLabel:{color:'#8b949e',fontSize:9}},
@@ -546,16 +533,23 @@ const app = createApp({
         ] };
     }
 
-    function networkChart(rx, tx) {
-      const maxVal = Math.max(0.1, ...rx, ...tx);
+    function perIfNetChart(histories, names) {
       const fmtRate = (v) => { if (v >= 1048576) return (v/1048576).toFixed(1)+'GB/s'; if (v >= 1024) return (v/1024).toFixed(1)+'MB/s'; return v.toFixed(0)+'KB/s'; };
-      return { animation:false, grid:{left:55,right:8,top:22,bottom:16}, xAxis:{type:'category',data:Array(60).fill(''),show:false},
+      const series = [];
+      const legendData = [];
+      names.forEach((name, i) => {
+        const h = histories[name]; if (!h) return;
+        const color = coreColors[i % coreColors.length];
+        legendData.push(name+' Rx', name+' Tx');
+        series.push({name:name+' Rx',type:'line',stack:'rx',data:[...h.rx],smooth:true,symbol:'none',lineStyle:{width:1.2,color},areaStyle:{color:color+'33'}});
+        series.push({name:name+' Tx',type:'line',stack:'tx',data:[...h.tx],smooth:true,symbol:'none',lineStyle:{width:1.2,color,type:'dashed'},areaStyle:{color:color+'18'}});
+      });
+      const allVals = series.flatMap(s => s.data);
+      const maxVal = Math.max(0.1, ...allVals);
+      return { animation:false, grid:{left:55,right:8,top:32,bottom:16}, xAxis:{type:'category',data:Array(60).fill(''),show:false},
         yAxis:{type:'value',min:0,splitLine:{lineStyle:{color:'#21262d'}},axisLabel:{color:'#8b949e',fontSize:9,formatter:v=>fmtRate(v)}},
-        legend:{data:['\u25BC Rx','\u25B2 Tx'],textStyle:{color:'#8b949e',fontSize:9},top:0,right:8},
-        series:[
-          {name:'\u25BC Rx',type:'line',data:rx,smooth:true,symbol:'none',lineStyle:{width:1.5,color:'#3fb950'},areaStyle:{color:{type:'linear',x:0,y:0,x2:0,y2:1,colorStops:[{offset:0,color:'#3fb95044'},{offset:1,color:'#3fb95008'}]}}},
-          {name:'\u25B2 Tx',type:'line',data:tx,smooth:true,symbol:'none',lineStyle:{width:1.5,color:'#f85149'},areaStyle:{color:{type:'linear',x:0,y:0,x2:0,y2:1,colorStops:[{offset:0,color:'#f8514944'},{offset:1,color:'#f8514908'}]}}},
-        ] };
+        legend:{data:legendData,textStyle:{color:'#8b949e',fontSize:8},top:0,type:'scroll',pageTextStyle:{color:'#8b949e'}},
+        series };
     }
 
     function toggleTheme() {
@@ -571,7 +565,7 @@ const app = createApp({
     onMounted(() => {
       const p = createPane(window.location.origin);
       tree.value = reactive({ type: 'leaf', pane: p });
-      window.addEventListener('resize', () => { Object.values(allPanes).forEach(p => { p._cpuChart?.resize(); p._memChart?.resize(); p._perCoreChart?.resize(); p._netChart?.resize(); }); });
+      window.addEventListener('resize', () => { Object.values(allPanes).forEach(p => { p._memChart?.resize(); p._perCoreChart?.resize(); p._netChart?.resize(); }); });
     });
     onUnmounted(() => { Object.values(allPanes).forEach(p => stopPolling(p)); });
 
