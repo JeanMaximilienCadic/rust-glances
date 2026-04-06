@@ -118,7 +118,7 @@ glances -w --tls-cert /path/to/cert.pem --tls-key /path/to/key.pem
 - **Display modes** -- full, normal, and minimal views per pane
 - **HTTPS** -- auto-generated self-signed certificate or custom TLS cert/key
 - **PWA** -- installable as a Chrome/Progressive Web App
-- **Real-time charts** -- CPU, RAM, and swap history with server-side persistence
+- **Real-time charts** -- per-core CPU, RAM/swap, and per-interface network history with server-side persistence
 - **Process management** -- sort, filter, and kill processes from the browser
 - **REST API** -- JSON endpoints for integration with other tools
 
