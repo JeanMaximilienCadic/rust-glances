@@ -170,8 +170,8 @@
           <span v-if="node.pane.data.system.power && node.pane.data.system.power.available" style="color:var(--fg2)">Power <strong style="color:var(--orange)">{{ node.pane.data.system.power.total_power_w.toFixed(1) }}W</strong></span>
         </div>
       </div>
-      <!-- CPU + Memory + Sensors (3-col when sensors available) -->
-      <div class="row" :class="$root.hasSensors(node.pane) && node.pane.displayMode !== 'minimal' ? 'row-3' : 'row-2'">
+      <!-- CPU + Memory + Network (3-col) -->
+      <div class="row row-3">
         <div class="card">
           <div class="card-title">CPU<span>{{ node.pane.data.system.cpu_count }}c &mdash; {{ node.pane.data.system.cpu_global.toFixed(1) }}%</span></div>
           <div class="card-body">
@@ -188,8 +188,17 @@
             <div :ref="el => { node.pane._memEl = el }" class="chart-container"></div>
           </div>
         </div>
-        <!-- Sensors — normal/full, compact heatmap grid -->
-        <div class="card" v-if="$root.hasSensors(node.pane) && node.pane.displayMode !== 'minimal'">
+        <div class="card">
+          <div class="card-title">Network<span style="font-weight:400;text-transform:none;letter-spacing:0"><span style="color:var(--green)">&blacktriangledown; Rx</span> <span style="color:var(--red)">&blacktriangle; Tx</span></span></div>
+          <div class="card-body">
+            <div :ref="el => { node.pane._netEl = el }" class="chart-container"></div>
+          </div>
+        </div>
+      </div>
+      <!-- Sensors + Disks — normal/full -->
+      <div class="row" :class="$root.hasSensors(node.pane) && node.pane.displayMode !== 'minimal' ? 'row-2' : 'row-1'" v-if="node.pane.displayMode !== 'minimal'">
+        <!-- Sensors — compact heatmap grid -->
+        <div class="card" v-if="$root.hasSensors(node.pane)">
           <div class="card-title">Sensors</div>
           <div class="card-body" style="max-height:220px;overflow-y:auto;">
             <template v-if="node.pane.data.system.power && node.pane.data.system.power.available">
@@ -208,15 +217,6 @@
                 <div :style="{fontWeight:700,color:$root.tempGrad(temp),fontSize:'13px'}">{{ temp.toFixed(0) }}<span style="font-size:9px;font-weight:400">&deg;C</span></div>
               </div>
             </div>
-          </div>
-        </div>
-      </div>
-      <!-- Network + Disks — normal/full -->
-      <div class="row row-2" v-if="node.pane.displayMode !== 'minimal'">
-        <div class="card">
-          <div class="card-title">Network<span style="font-weight:400;text-transform:none;letter-spacing:0"><span style="color:var(--green)">&blacktriangledown; Rx</span> <span style="color:var(--red)">&blacktriangle; Tx</span></span></div>
-          <div class="card-body">
-            <div :ref="el => { node.pane._netEl = el }" class="chart-container"></div>
           </div>
         </div>
         <div class="card">

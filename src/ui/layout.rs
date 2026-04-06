@@ -25,9 +25,6 @@ use super::system::{
 };
 use super::tabs::render_tabs;
 use super::temps::render_temps_panel;
-use super::graphs::{render_cpu_mem_graph, render_sparkline_row};
-#[cfg(feature = "gpu")]
-use super::graphs::render_gpu_graphs;
 use crate::app::{App, ViewTab};
 
 /// Main UI rendering function.
@@ -110,10 +107,6 @@ fn render_overview(frame: &mut Frame, area: Rect, app: &mut App) {
         let core_rows = ((app.system_metrics.cpus.len() + 1) / 2 + 2) as u16;
         constraints.push(Constraint::Length(core_rows.min(10)));
     }
-    if app.show_graphs {
-        constraints.push(Constraint::Length(4)); // Mini sparklines
-        constraints.push(Constraint::Length(8)); // Area charts
-    }
     if has_alerts {
         let ah = (app.alerts.iter().filter(|a| a.ongoing).count() as u16 + 2).min(5);
         constraints.push(Constraint::Length(ah));
@@ -172,29 +165,6 @@ fn render_overview(frame: &mut Frame, area: Rect, app: &mut App) {
     // Per-core
     if app.show_per_core {
         render_per_core_cpu(frame, v_chunks[ci], app);
-        ci += 1;
-    }
-
-    // Graphs: sparkline row + area charts
-    if app.show_graphs {
-        render_sparkline_row(frame, v_chunks[ci], app);
-        ci += 1;
-
-        let graph_cols = Layout::default()
-            .direction(Direction::Horizontal)
-            .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
-            .split(v_chunks[ci]);
-        render_cpu_mem_graph(frame, graph_cols[0], app);
-        #[cfg(feature = "gpu")]
-        {
-            if app.gpu_enabled && app.gpu_metrics.is_some() {
-                render_gpu_graphs(frame, graph_cols[1], app);
-            } else {
-                render_network_graph(frame, graph_cols[1], app);
-            }
-        }
-        #[cfg(not(feature = "gpu"))]
-        render_network_graph(frame, graph_cols[1], app);
         ci += 1;
     }
 
