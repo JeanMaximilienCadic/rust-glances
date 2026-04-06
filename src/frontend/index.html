@@ -534,20 +534,22 @@ const app = createApp({
     }
 
     function perIfNetChart(histories, names) {
-      const fmtRate = (v) => { if (v >= 1048576) return (v/1048576).toFixed(1)+'GB/s'; if (v >= 1024) return (v/1024).toFixed(1)+'MB/s'; return v.toFixed(0)+'KB/s'; };
+      const fmtRate = (v) => { const a=Math.abs(v); if(a>=1048576) return (a/1048576).toFixed(1)+'GB/s'; if(a>=1024) return (a/1024).toFixed(1)+'MB/s'; return a.toFixed(0)+'KB/s'; };
       const series = [];
       const legendData = [];
       names.forEach((name, i) => {
         const h = histories[name]; if (!h) return;
         const color = coreColors[i % coreColors.length];
-        legendData.push(name+' Rx', name+' Tx');
-        series.push({name:name+' Rx',type:'line',stack:'rx',data:[...h.rx],smooth:true,symbol:'none',lineStyle:{width:1.2,color},areaStyle:{color:color+'33'}});
-        series.push({name:name+' Tx',type:'line',stack:'tx',data:[...h.tx],smooth:true,symbol:'none',lineStyle:{width:1.2,color,type:'dashed'},areaStyle:{color:color+'18'}});
+        legendData.push(name+' \u25BC Rx', name+' \u25B2 Tx');
+        series.push({name:name+' \u25BC Rx',type:'line',stack:'rx',data:[...h.rx],smooth:true,symbol:'none',lineStyle:{width:1.2,color},areaStyle:{color:color+'44'}});
+        series.push({name:name+' \u25B2 Tx',type:'line',stack:'tx',data:h.tx.map(v=>-v),smooth:true,symbol:'none',lineStyle:{width:1.2,color,type:'dashed'},areaStyle:{color:color+'44'}});
       });
       const allVals = series.flatMap(s => s.data);
-      const maxVal = Math.max(0.1, ...allVals);
+      const maxAbs = Math.max(0.1, ...allVals.map(Math.abs));
       return { animation:false, grid:{left:55,right:8,top:32,bottom:16}, xAxis:{type:'category',data:Array(60).fill(''),show:false},
-        yAxis:{type:'value',min:0,splitLine:{lineStyle:{color:'#21262d'}},axisLabel:{color:'#8b949e',fontSize:9,formatter:v=>fmtRate(v)}},
+        yAxis:{type:'value',min:-maxAbs*1.1,max:maxAbs*1.1,
+          splitLine:{lineStyle:{color:'#21262d'}},
+          axisLabel:{color:'#8b949e',fontSize:9,formatter:v=>v===0?'0':((v>0?'\u25BC ':'\u25B2 ')+fmtRate(v))}},
         legend:{data:legendData,textStyle:{color:'#8b949e',fontSize:8},top:0,type:'scroll',pageTextStyle:{color:'#8b949e'}},
         series };
     }
