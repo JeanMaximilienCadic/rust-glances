@@ -14,6 +14,26 @@ use ratatui::{
 
 use crate::app::App;
 
+/// Format size compactly with fixed width (6 chars) for table alignment.
+fn compact_size(bytes: u64) -> String {
+    const KIB: u64 = 1024;
+    const MIB: u64 = 1024 * 1024;
+    const GIB: u64 = 1024 * 1024 * 1024;
+    const TIB: u64 = 1024 * 1024 * 1024 * 1024;
+
+    if bytes >= TIB {
+        format!("{:>5}T", bytes / TIB)
+    } else if bytes >= GIB {
+        format!("{:>5}G", bytes / GIB)
+    } else if bytes >= MIB {
+        format!("{:>5}M", bytes / MIB)
+    } else if bytes >= KIB {
+        format!("{:>5}K", bytes / KIB)
+    } else {
+        format!("{:>5}B", bytes)
+    }
+}
+
 fn docker_color(pct: f64) -> Color {
     if pct >= 80.0 {
         Color::Rgb(255, 80, 80)
@@ -133,15 +153,11 @@ fn render_container_table(frame: &mut Frame, area: Rect, app: &mut App) {
             (truncate_str(&c.name, col1_max), truncate_str(&c.image, col2_max))
         };
 
-        // Network I/O combined
-        let net_io = format!("{}↓ {}↑",
-            format_size(c.net_rx, BINARY).replace(" ", ""),
-            format_size(c.net_tx, BINARY).replace(" ", ""));
+        // Network I/O combined - fixed 6-char values for alignment
+        let net_io = format!("↓{} ↑{}", compact_size(c.net_rx), compact_size(c.net_tx));
 
-        // Block I/O combined
-        let blk_io = format!("{}R {}W",
-            format_size(c.block_read, BINARY).replace(" ", ""),
-            format_size(c.block_write, BINARY).replace(" ", ""));
+        // Block I/O combined - fixed 6-char values for alignment
+        let blk_io = format!("R{} W{}", compact_size(c.block_read), compact_size(c.block_write));
 
         // Port and volume counts
         let port_count = c.port_mappings.len();
@@ -179,15 +195,15 @@ fn render_container_table(frame: &mut Frame, area: Rect, app: &mut App) {
     let table = Table::new(
         rows,
         [
-            Constraint::Percentage(14),  // Compose/Name
-            Constraint::Percentage(16),  // Service/Image
-            Constraint::Percentage(10),  // Status
-            Constraint::Percentage(8),   // CPU%
-            Constraint::Percentage(10),  // MEM
-            Constraint::Percentage(14),  // Net I/O
-            Constraint::Percentage(14),  // Blk I/O
+            Constraint::Percentage(13),  // Compose/Name
+            Constraint::Percentage(15),  // Service/Image
+            Constraint::Percentage(9),   // Status
+            Constraint::Percentage(7),   // CPU%
+            Constraint::Percentage(9),   // MEM
+            Constraint::Percentage(16),  // Net I/O (fixed-width aligned)
+            Constraint::Percentage(16),  // Blk I/O (fixed-width aligned)
             Constraint::Percentage(7),   // Ports count
-            Constraint::Percentage(7),   // Vols count
+            Constraint::Percentage(8),   // Vols count
         ],
     )
     .block(
