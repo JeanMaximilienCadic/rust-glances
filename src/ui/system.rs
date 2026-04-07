@@ -33,16 +33,18 @@ fn gradient_bar(pct: f64, width: usize) -> Vec<Span<'static>> {
 }
 
 /// Compute bar width so all rows align: total width - label - pct - separator - 3 stat columns.
+/// Limit bar to max 20 chars to ensure stats have enough space.
 fn bar_width(area_width: u16) -> usize {
     let stats_width = 3 * 14; // 3 columns × ~14 chars each
-    (area_width as usize).saturating_sub(LABEL_W + PCT_W + 2 + stats_width).max(6)
+    let bar = (area_width as usize).saturating_sub(LABEL_W + PCT_W + 2 + stats_width);
+    bar.clamp(6, 20) // Limit bar width to 6-20 chars for better text spacing
 }
 
-/// Render a stat column: `label value` with fixed width.
+/// Render a stat column: `label: value` with fixed-width alignment.
 fn stat(label: &str, value: &str, val_color: Color) -> Vec<Span<'static>> {
     vec![
-        Span::styled(format!("{:<5}", label), Style::default().fg(Color::DarkGray)),
-        Span::styled(format!("{:>8} ", value), Style::default().fg(val_color)),
+        Span::styled(format!("{:>5}: ", label), Style::default().fg(Color::DarkGray)),
+        Span::styled(format!("{:<9} ", value), Style::default().fg(val_color)),
     ]
 }
 
@@ -84,23 +86,101 @@ pub fn render_memory_section(frame: &mut Frame, area: Rect, app: &App) {
     frame.render_widget(Paragraph::new(Line::from(s)), area);
 }
 
-/// Render SWAP line with aligned columns.
-pub fn render_swap_section(frame: &mut Frame, area: Rect, app: &App) {
-    let mem = &app.system_metrics.memory;
-    let pct = if mem.swap_total > 0 { (mem.swap_used as f64 / mem.swap_total as f64) * 100.0 } else { 0.0 };
+/// Render DISK I/O line with aligned columns (similar to CPU/MEM).
+pub fn render_disk_io_section(frame: &mut Frame, area: Rect, app: &App) {
+    let read_rate = app.system_metrics.total_disk_read_rate;
+    let write_rate = app.system_metrics.total_disk_write_rate;
+
+    // Calculate a percentage based on a reasonable max (100 MB/s as reference)
+    let max_rate = 104_857_600.0; // 100 MB/s
+    let total_rate = read_rate + write_rate;
+    let pct = ((total_rate / max_rate) * 100.0).min(100.0);
     let bw = bar_width(area.width);
 
     let mut s = vec![
-        Span::styled("SWAP ", Style::default().fg(Color::Rgb(255, 180, 50)).add_modifier(Modifier::BOLD)),
+        Span::styled("DISK ", Style::default().fg(Color::Rgb(100, 200, 255)).add_modifier(Modifier::BOLD)),
     ];
     s.extend(gradient_bar(pct, bw));
     s.push(Span::styled(format!(" {:5.1}%", pct), Style::default().fg(Color::White).add_modifier(Modifier::BOLD)));
     s.push(Span::raw("  "));
-    s.extend(stat("total", &format_size(mem.swap_total, BINARY), Color::White));
-    s.extend(stat("used", &format_size(mem.swap_used, BINARY), Color::Rgb(255, 180, 50)));
-    s.extend(stat("free", &format_size(mem.swap_free, BINARY), Color::DarkGray));
+    s.extend(stat("read", &format_rate_short(read_rate), Color::Rgb(80, 220, 120)));
+    s.extend(stat("write", &format_rate_short(write_rate), Color::Rgb(255, 100, 100)));
+    s.extend(stat("total", &format_rate_short(total_rate), Color::White));
 
     frame.render_widget(Paragraph::new(Line::from(s)), area);
+}
+
+/// Format rate to human-readable short string.
+fn format_rate_short(bytes_per_sec: f64) -> String {
+    if bytes_per_sec >= 1_073_741_824.0 {
+        format!("{:.1}G/s", bytes_per_sec / 1_073_741_824.0)
+    } else if bytes_per_sec >= 1_048_576.0 {
+        format!("{:.1}M/s", bytes_per_sec / 1_048_576.0)
+    } else if bytes_per_sec >= 1024.0 {
+        format!("{:.0}K/s", bytes_per_sec / 1024.0)
+    } else {
+        format!("{:.0}B/s", bytes_per_sec)
+    }
+}
+
+/// Render all GPUs in a compact panel (each GPU on its own line).
+pub fn render_gpus_compact(frame: &mut Frame, area: Rect, app: &App) {
+    use ratatui::widgets::block::BorderType;
+
+    let Some(ref gpu_metrics) = app.gpu_metrics else {
+        return;
+    };
+
+    let mut lines: Vec<Line> = Vec::new();
+    let inner_width = area.width.saturating_sub(4) as usize;
+    let bar_w = inner_width.saturating_sub(45).max(6);
+
+    for gpu in &gpu_metrics.gpus {
+        let gpu_pct = gpu.gpu_utilization as f64;
+        let mem_pct = if gpu.memory_total > 0 {
+            (gpu.memory_used as f64 / gpu.memory_total as f64) * 100.0
+        } else {
+            0.0
+        };
+
+        let filled = ((gpu_pct / 100.0) * bar_w as f64).round() as usize;
+        let empty = bar_w.saturating_sub(filled);
+        let color = gradient_color_for(gpu_pct);
+
+        let spans = vec![
+            Span::styled(format!("GPU{} ", gpu.index), Style::default().fg(Color::Rgb(80, 220, 120)).add_modifier(Modifier::BOLD)),
+            Span::styled("▓".repeat(filled), Style::default().fg(color)),
+            Span::styled("░".repeat(empty), Style::default().fg(Color::Rgb(40, 40, 50))),
+            Span::styled(format!(" {:5.1}%", gpu_pct), Style::default().fg(Color::White).add_modifier(Modifier::BOLD)),
+            Span::raw("  "),
+            Span::styled("mem ", Style::default().fg(Color::DarkGray)),
+            Span::styled(format!("{:>5.1}%", mem_pct), Style::default().fg(Color::Rgb(200, 130, 255))),
+            Span::raw("  "),
+            Span::styled(format!("{:>3}°C", gpu.temperature), Style::default().fg(temp_color(gpu.temperature))),
+            Span::raw("  "),
+            Span::styled(format!("{:>3}W", gpu.power_usage), Style::default().fg(Color::Rgb(255, 220, 100))),
+        ];
+
+        lines.push(Line::from(spans));
+    }
+
+    let block = Block::default()
+        .borders(Borders::ALL)
+        .border_type(BorderType::Rounded)
+        .title(format!(" GPUs ({}) ", gpu_metrics.gpus.len()))
+        .border_style(Style::default().fg(Color::Rgb(80, 80, 120)));
+
+    frame.render_widget(Paragraph::new(lines).block(block), area);
+}
+
+fn temp_color(temp: u32) -> Color {
+    if temp >= 85 {
+        Color::Rgb(255, 80, 80)
+    } else if temp >= 70 {
+        Color::Rgb(255, 180, 50)
+    } else {
+        Color::Rgb(80, 220, 120)
+    }
 }
 
 /// Render LOAD line with aligned columns.
@@ -141,7 +221,7 @@ pub fn render_per_core_cpu(frame: &mut Frame, area: Rect, app: &App) {
         return;
     }
 
-    let half = (cpus.len() + 1) / 2;
+    let half = cpus.len().div_ceil(2);
     let col_width = (area.width as usize).saturating_sub(4) / 2;
     let bar_w = col_width.saturating_sub(12);
 
@@ -237,10 +317,14 @@ pub fn render_network_full(frame: &mut Frame, area: Rect, app: &App) {
     frame.render_widget(table, area);
 }
 
-/// Full-screen disk view with all filesystems (df -h style).
-pub fn render_disk_full(frame: &mut Frame, area: Rect, app: &App) {
-    let header = Row::new(vec!["Filesystem", "Size", "Used", "Avail", "Use%", "Mounted on"])
-        .style(Style::default().fg(Color::Rgb(200, 200, 255)).add_modifier(Modifier::BOLD));
+/// Full-screen disk view with I/O stats - with scrolling support.
+pub fn render_disk_full(frame: &mut Frame, area: Rect, app: &mut App) {
+    use ratatui::layout::Margin;
+    use ratatui::widgets::{Scrollbar, ScrollbarOrientation, ScrollbarState};
+
+    let header = Row::new(vec![
+        "Filesystem", "Size", "Used", "Avail", "Use%", "Read/s", "Write/s", "Mount"
+    ]).style(Style::default().fg(Color::Rgb(200, 200, 255)).add_modifier(Modifier::BOLD));
 
     let mut rows: Vec<Row> = Vec::new();
     for disk in app.system_metrics.disks.iter().filter(|d| d.total > 0) {
@@ -256,50 +340,83 @@ pub fn render_disk_full(frame: &mut Frame, area: Rect, app: &App) {
             Color::Rgb(80, 220, 120)
         };
 
+        // I/O rate colors
+        let read_color = if disk.read_rate > 50_000_000.0 {
+            Color::Rgb(255, 180, 50)
+        } else {
+            Color::Rgb(80, 220, 120)
+        };
+        let write_color = if disk.write_rate > 50_000_000.0 {
+            Color::Rgb(255, 100, 100)
+        } else {
+            Color::Rgb(100, 200, 255)
+        };
+
         let first_mp = disk.mount_points.first().cloned().unwrap_or_default();
-        // Main row with filesystem stats and first mount point
         rows.push(Row::new(vec![
             Cell::from(disk.name.clone()).style(Style::default().fg(Color::Cyan)),
             Cell::from(format_size(disk.total, BINARY)),
             Cell::from(format_size(disk.used, BINARY)),
             Cell::from(format_size(avail, BINARY)),
             Cell::from(format!("{:>3.0}%", pct)).style(Style::default().fg(pct_color)),
+            Cell::from(format!("{}/s", format_size(disk.read_rate as u64, BINARY)))
+                .style(Style::default().fg(read_color)),
+            Cell::from(format!("{}/s", format_size(disk.write_rate as u64, BINARY)))
+                .style(Style::default().fg(write_color)),
             Cell::from(first_mp).style(Style::default().fg(Color::White)),
         ]));
-        // Tree rows for additional mount points
-        let extra = &disk.mount_points[1..];
-        for (i, mp) in extra.iter().enumerate() {
-            let prefix = if i == extra.len() - 1 { "└─ " } else { "├─ " };
-            rows.push(Row::new(vec![
-                Cell::from(""),
-                Cell::from(""),
-                Cell::from(""),
-                Cell::from(""),
-                Cell::from(""),
-                Cell::from(format!("{}{}", prefix, mp)).style(Style::default().fg(Color::DarkGray)),
-            ]));
-        }
+    }
+
+    let row_count = rows.len();
+
+    // Initialize selection if not set
+    if app.disk_state.selected().is_none() && row_count > 0 {
+        app.disk_state.select(Some(0));
     }
 
     let table = Table::new(
         rows,
         [
-            Constraint::Min(25),
+            Constraint::Min(20),
             Constraint::Length(10),
             Constraint::Length(10),
             Constraint::Length(10),
             Constraint::Length(6),
-            Constraint::Min(15),
+            Constraint::Length(12),
+            Constraint::Length(12),
+            Constraint::Min(12),
         ],
     )
     .block(
         Block::default()
             .borders(Borders::ALL)
             .border_type(BorderType::Rounded)
-            .title(" Filesystems (df -h) ")
+            .title(" Disks — ↑↓ scroll ")
             .border_style(Style::default().fg(Color::Rgb(80, 80, 120))),
     )
-    .header(header);
+    .header(header)
+    .row_highlight_style(
+        Style::default()
+            .bg(Color::Rgb(40, 40, 60))
+            .add_modifier(Modifier::BOLD),
+    );
 
-    frame.render_widget(table, area);
+    frame.render_stateful_widget(table, area, &mut app.disk_state);
+
+    // Scrollbar
+    if row_count > (area.height as usize).saturating_sub(3) {
+        let scrollbar = Scrollbar::default()
+            .orientation(ScrollbarOrientation::VerticalRight)
+            .begin_symbol(Some("↑"))
+            .end_symbol(Some("↓"));
+
+        let mut scrollbar_state = ScrollbarState::new(row_count)
+            .position(app.disk_state.selected().unwrap_or(0));
+
+        frame.render_stateful_widget(
+            scrollbar,
+            area.inner(Margin { vertical: 1, horizontal: 0 }),
+            &mut scrollbar_state,
+        );
+    }
 }

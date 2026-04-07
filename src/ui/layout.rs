@@ -20,8 +20,8 @@ use super::logs_dialog::render_logs_dialog;
 use super::ports::render_port_processes;
 use super::processes::render_cpu_processes;
 use super::system::{
-    render_cpu_section, render_disk_full, render_load_section, render_memory_section,
-    render_network_full, render_per_core_cpu, render_swap_section,
+    render_cpu_section, render_disk_full, render_disk_io_section, render_load_section,
+    render_memory_section, render_network_full, render_per_core_cpu, render_gpus_compact,
 };
 use super::tabs::render_tabs;
 use super::temps::render_temps_panel;
@@ -41,9 +41,10 @@ pub fn render_ui(frame: &mut Frame, app: &mut App) {
 
     let has_status = app.status_message.is_some();
 
-    // Main vertical: header | tabs | content | (status) | footer
+    // Main vertical: header | spacer | tabs | content | (status) | footer
     let mut constraints = vec![
         Constraint::Length(1), // Header
+        Constraint::Length(1), // Spacer
         Constraint::Length(1), // Tabs
         Constraint::Min(0),   // Content
     ];
@@ -59,6 +60,8 @@ pub fn render_ui(frame: &mut Frame, app: &mut App) {
 
     let mut idx = 0;
     render_header(frame, main_chunks[idx], app);
+    idx += 1;
+    // Skip spacer (idx 1)
     idx += 1;
     render_tabs(frame, main_chunks[idx], app);
     idx += 1;
@@ -77,7 +80,7 @@ pub fn render_ui(frame: &mut Frame, app: &mut App) {
         ViewTab::Processes => render_processes_view(frame, content, app),
         ViewTab::Network => render_network_view(frame, content, app),
         ViewTab::Disks => render_disks_view(frame, content, app),
-        ViewTab::Docker => render_docker_view(frame, content, app),
+        ViewTab::Virt => render_virt_view(frame, content, app),
         ViewTab::Gpu => render_gpu_view(frame, content, app),
         ViewTab::Ports => render_ports_view(frame, content, app),
     }
@@ -91,31 +94,33 @@ pub fn render_ui(frame: &mut Frame, app: &mut App) {
     }
 }
 
-/// Overview: the main dashboard — CPU/MEM/LOAD left, Network/Disk/Temps right, processes bottom.
+/// Overview: the main dashboard — CPU/MEM/DISK/LOAD left, Network/Temps right, GPUs, processes, alerts bottom.
 fn render_overview(frame: &mut Frame, area: Rect, app: &mut App) {
-    #[cfg(feature = "docker")]
-    let has_docker = app.show_docker && !app.docker_containers.is_empty();
-    #[cfg(not(feature = "docker"))]
-    let has_docker = false;
-    let has_alerts = !app.alerts.is_empty();
+    let ongoing_alerts = app.alerts.iter().filter(|a| a.ongoing).count();
+    let gpu_count = app.gpu_metrics.as_ref().map(|g| g.gpus.len()).unwrap_or(0);
+    let has_gpus = gpu_count > 0;
 
-    // Split: top info panels | graphs | alerts | processes | (docker)
+    // Split: top info panels | GPUs | per-core | processes | alerts (always at bottom)
     let mut constraints = vec![
-        Constraint::Length(7),  // Top info row (CPU + MEM + LOAD | Network + Disk)
+        Constraint::Length(7),  // Top info row (CPU + MEM + DISK + LOAD | Network)
     ];
+    if has_gpus {
+        // Each GPU gets 1 line + 2 for border
+        let gpu_height = (gpu_count as u16 + 2).min(6);
+        constraints.push(Constraint::Length(gpu_height));
+    }
     if app.show_per_core {
-        let core_rows = ((app.system_metrics.cpus.len() + 1) / 2 + 2) as u16;
+        let core_rows = (app.system_metrics.cpus.len().div_ceil(2) + 2) as u16;
         constraints.push(Constraint::Length(core_rows.min(10)));
     }
-    if has_alerts {
-        let ah = (app.alerts.iter().filter(|a| a.ongoing).count() as u16 + 2).min(5);
-        constraints.push(Constraint::Length(ah));
-    }
-    constraints.push(Constraint::Min(6)); // Processes
-    if has_docker {
-        let dh = (app.docker_containers.len() as u16 + 3).min(10);
-        constraints.push(Constraint::Length(dh));
-    }
+    // Alerts always at bottom - height based on ongoing alerts or minimum of 3
+    let alerts_height = if ongoing_alerts > 0 {
+        (ongoing_alerts as u16 + 2).min(6)
+    } else {
+        3 // Minimum height to show "No active alerts"
+    };
+    constraints.push(Constraint::Min(5)); // Processes (takes remaining space, min 5 lines)
+    constraints.push(Constraint::Length(alerts_height)); // Alerts fixed at bottom
 
     let v_chunks = Layout::default()
         .direction(Direction::Vertical)
@@ -124,20 +129,20 @@ fn render_overview(frame: &mut Frame, area: Rect, app: &mut App) {
 
     let mut ci = 0;
 
-    // Top row: left (CPU/MEM/LOAD) | right (Network/Sensors)
+    // Top row: left (CPU/MEM/DISK/LOAD) | right (Network/Sensors)
     let top_cols = Layout::default()
         .direction(Direction::Horizontal)
         .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
         .split(v_chunks[ci]);
     ci += 1;
 
-    // Left column: CPU, MEM, SWAP, LOAD stacked
+    // Left column: CPU, MEM, DISK I/O, LOAD stacked
     let left_rows = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
             Constraint::Length(1), // CPU
             Constraint::Length(1), // MEM
-            Constraint::Length(1), // SWAP
+            Constraint::Length(1), // DISK I/O
             Constraint::Length(1), // LOAD
             Constraint::Min(0),   // spacer
         ])
@@ -146,7 +151,7 @@ fn render_overview(frame: &mut Frame, area: Rect, app: &mut App) {
 
     render_cpu_section(frame, left_rows[0], app);
     render_memory_section(frame, left_rows[1], app);
-    render_swap_section(frame, left_rows[2], app);
+    render_disk_io_section(frame, left_rows[2], app);
     render_load_section(frame, left_rows[3], app);
 
     // Right column: Network interfaces + temps side by side
@@ -162,15 +167,15 @@ fn render_overview(frame: &mut Frame, area: Rect, app: &mut App) {
         render_network_compact(frame, top_cols[1], app);
     }
 
-    // Per-core
-    if app.show_per_core {
-        render_per_core_cpu(frame, v_chunks[ci], app);
+    // GPUs (all of them, separately)
+    if has_gpus {
+        render_gpus_compact(frame, v_chunks[ci], app);
         ci += 1;
     }
 
-    // Alerts
-    if has_alerts {
-        render_alerts_panel(frame, v_chunks[ci], app);
+    // Per-core
+    if app.show_per_core {
+        render_per_core_cpu(frame, v_chunks[ci], app);
         ci += 1;
     }
 
@@ -178,12 +183,8 @@ fn render_overview(frame: &mut Frame, area: Rect, app: &mut App) {
     render_cpu_processes(frame, v_chunks[ci], app);
     ci += 1;
 
-    // Docker
-    #[cfg(feature = "docker")]
-    if has_docker {
-        render_docker_panel(frame, v_chunks[ci], app);
-        ci += 1;
-    }
+    // Alerts (always at bottom)
+    render_alerts_panel(frame, v_chunks[ci], app);
 
     let _ = ci;
 }
@@ -193,14 +194,81 @@ fn render_processes_view(frame: &mut Frame, area: Rect, app: &mut App) {
     render_cpu_processes(frame, area, app);
 }
 
-/// Full-screen network view with all interfaces and graph.
+/// Full-screen network view with all interfaces, port forwards, and graph.
 fn render_network_view(frame: &mut Frame, area: Rect, app: &mut App) {
+    let has_port_forwards = !app.system_metrics.port_forwards.is_empty();
+
+    let constraints = if has_port_forwards {
+        vec![
+            Constraint::Length(8),  // Network graph
+            Constraint::Min(5),     // Network interfaces
+            Constraint::Length(6),  // Port forwards
+        ]
+    } else {
+        vec![
+            Constraint::Length(8),  // Network graph
+            Constraint::Min(5),     // Network interfaces
+        ]
+    };
+
     let chunks = Layout::default()
         .direction(Direction::Vertical)
-        .constraints([Constraint::Length(8), Constraint::Min(5)])
+        .constraints(constraints)
         .split(area);
+
     render_network_graph(frame, chunks[0], app);
     render_network_full(frame, chunks[1], app);
+
+    if has_port_forwards {
+        render_port_forwards(frame, chunks[2], app);
+    }
+}
+
+/// Render port forwarding rules panel.
+fn render_port_forwards(frame: &mut Frame, area: Rect, app: &App) {
+    use ratatui::style::{Color, Modifier, Style};
+    use ratatui::widgets::{Block, Borders, Cell, Row, Table, block::BorderType};
+
+    let header = Row::new(vec!["Proto", "External", "→", "Internal", "Source"])
+        .style(Style::default().fg(Color::Rgb(200, 200, 255)).add_modifier(Modifier::BOLD));
+
+    let rows: Vec<Row> = app.system_metrics.port_forwards.iter().map(|rule| {
+        let proto_color = if rule.protocol == "tcp" {
+            Color::Cyan
+        } else {
+            Color::Magenta
+        };
+
+        Row::new(vec![
+            Cell::from(rule.protocol.clone()).style(Style::default().fg(proto_color)),
+            Cell::from(format!(":{}", rule.src_port)).style(Style::default().fg(Color::Green)),
+            Cell::from("→").style(Style::default().fg(Color::DarkGray)),
+            Cell::from(format!("{}:{}", rule.dest_ip, rule.dest_port))
+                .style(Style::default().fg(Color::Rgb(255, 180, 50))),
+            Cell::from(rule.src_ip.clone()).style(Style::default().fg(Color::DarkGray)),
+        ])
+    }).collect();
+
+    let table = Table::new(
+        rows,
+        [
+            Constraint::Length(6),   // Proto
+            Constraint::Length(8),   // External port
+            Constraint::Length(2),   // Arrow
+            Constraint::Length(22),  // Internal IP:port
+            Constraint::Min(10),     // Source
+        ],
+    )
+    .block(
+        Block::default()
+            .borders(Borders::ALL)
+            .border_type(BorderType::Rounded)
+            .title(format!(" Port Forwards ({}) ", app.system_metrics.port_forwards.len()))
+            .border_style(Style::default().fg(Color::Rgb(80, 120, 80))),
+    )
+    .header(header);
+
+    frame.render_widget(table, area);
 }
 
 /// Full-screen disk view.
@@ -208,13 +276,54 @@ fn render_disks_view(frame: &mut Frame, area: Rect, app: &mut App) {
     render_disk_full(frame, area, app);
 }
 
-/// Full-screen docker view.
+/// Full-screen virtualization view (Docker, LXC, Lima).
 #[allow(unused_variables)]
-fn render_docker_view(frame: &mut Frame, area: Rect, app: &mut App) {
+fn render_virt_view(frame: &mut Frame, area: Rect, app: &mut App) {
     #[cfg(feature = "docker")]
-    render_docker_panel(frame, area, app);
+    render_virt_panel(frame, area, app);
     #[cfg(not(feature = "docker"))]
-    render_feature_disabled(frame, area, "Docker", "docker");
+    render_feature_disabled(frame, area, "Virtualization", "docker");
+}
+
+/// Unified virtualization panel showing Docker/LXC/Lima containers.
+#[cfg(feature = "docker")]
+fn render_virt_panel(frame: &mut Frame, area: Rect, app: &mut App) {
+    // Layout imports reserved for future multi-runtime support
+
+    // For now, show Docker panel (LXC and Lima can be added later)
+    // Split area if we have multiple container types
+    let has_docker = !app.docker_containers.is_empty();
+
+    if has_docker {
+        // Show Docker containers
+        render_docker_panel(frame, area, app);
+    } else {
+        // Show "no containers" message
+        use ratatui::style::{Color, Style};
+        use ratatui::text::Line;
+        use ratatui::widgets::{Block, Borders, Paragraph, block::BorderType};
+
+        let text = vec![
+            Line::from(""),
+            Line::from("No containers detected."),
+            Line::from(""),
+            Line::from("Supported runtimes:"),
+            Line::from("  • Docker (enabled)"),
+            Line::from("  • LXC (planned)"),
+            Line::from("  • Lima (planned)"),
+        ];
+        let block = Block::default()
+            .borders(Borders::ALL)
+            .border_type(BorderType::Rounded)
+            .title(" Virtualization ")
+            .border_style(Style::default().fg(Color::DarkGray));
+        frame.render_widget(
+            Paragraph::new(text)
+                .style(Style::default().fg(Color::DarkGray))
+                .block(block),
+            area,
+        );
+    }
 }
 
 /// Full-screen GPU view.

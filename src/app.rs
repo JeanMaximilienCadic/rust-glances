@@ -37,11 +37,15 @@ pub struct ContainerInfo {
     pub status: String,
     pub state: String,
     pub ports: String,
+    pub port_mappings: Vec<()>,
+    pub volume_mounts: Vec<()>,
     pub cpu_pct: f64,
     pub mem_usage: u64,
     pub mem_limit: u64,
     pub net_rx: u64,
     pub net_tx: u64,
+    pub compose_project: String,
+    pub compose_service: String,
 }
 
 /// HTTP method for API testing.
@@ -139,7 +143,7 @@ pub enum ViewTab {
     Processes,
     Network,
     Disks,
-    Docker,
+    Virt,  // Virtualization: Docker, LXC, Lima
     Gpu,
     Ports,
 }
@@ -180,6 +184,9 @@ pub struct App {
     pub cpu_process_state: TableState,
     pub gpu_process_state: TableState,
     pub docker_state: TableState,
+    pub disk_state: TableState,
+    #[allow(dead_code)] // Reserved for future network view scrolling
+    pub network_state: TableState,
     pub cpu_sort: SortColumn,
     pub gpu_sort: SortColumn,
     pub sort_ascending: bool,
@@ -188,6 +195,7 @@ pub struct App {
     pub compact_mode: bool,
     pub show_graphs: bool,
     pub show_per_core: bool,
+    #[allow(dead_code)] // Kept for web API compatibility
     pub show_docker: bool,
     pub show_temps: bool,
     pub active_tab: ViewTab,
@@ -257,6 +265,8 @@ impl App {
             cpu_process_state: TableState::default(),
             gpu_process_state: TableState::default(),
             docker_state: TableState::default(),
+            disk_state: TableState::default(),
+            network_state: TableState::default(),
             cpu_sort: SortColumn::Cpu,
             gpu_sort: SortColumn::GpuMemory,
             sort_ascending: false,
@@ -303,7 +313,7 @@ impl App {
         self.networks.refresh();
 
         // Every 5 cycles: disks, components/temps, battery
-        if self.refresh_count % 5 == 0 {
+        if self.refresh_count.is_multiple_of(5) {
             self.disks.refresh();
             self.components.refresh();
         }
@@ -321,7 +331,7 @@ impl App {
 
         // Parallel collection of independent metrics
         let gpu_enabled = self.gpu_enabled;
-        let do_slow = self.refresh_count % 5 == 0;
+        let do_slow = self.refresh_count.is_multiple_of(5);
 
         std::thread::scope(|s| {
             let gpu_handle = s.spawn(|| {
@@ -639,6 +649,30 @@ impl App {
         procs
     }
 
+    /// Get the container at the selected display index (sorted order).
+    /// Docker containers are displayed sorted by compose_project then name.
+    #[cfg(feature = "docker")]
+    pub fn get_selected_container(&self) -> Option<&ContainerInfo> {
+        if self.docker_containers.is_empty() {
+            return None;
+        }
+
+        // Build sorted indices (same logic as docker.rs render)
+        let mut sorted_indices: Vec<usize> = (0..self.docker_containers.len()).collect();
+        sorted_indices.sort_by(|&a, &b| {
+            let ca = &self.docker_containers[a];
+            let cb = &self.docker_containers[b];
+            ca.compose_project
+                .cmp(&cb.compose_project)
+                .then(ca.name.cmp(&cb.name))
+        });
+
+        let selected_row = self.docker_state.selected().unwrap_or(0);
+        sorted_indices
+            .get(selected_row)
+            .and_then(|&idx| self.docker_containers.get(idx))
+    }
+
     /// Handle keyboard input.
     pub fn handle_key(&mut self, code: KeyCode, modifiers: KeyModifiers) {
         // Handle kill confirmation dialog
@@ -736,8 +770,14 @@ impl App {
             KeyCode::Char('1') => self.active_tab = ViewTab::Overview,
             KeyCode::Char('2') => self.active_tab = ViewTab::Processes,
             KeyCode::Char('3') => self.active_tab = ViewTab::Network,
-            KeyCode::Char('4') => self.active_tab = ViewTab::Disks,
-            KeyCode::Char('5') => self.active_tab = ViewTab::Docker,
+            KeyCode::Char('4') => {
+                self.active_tab = ViewTab::Disks;
+                let disk_count = self.system_metrics.disks.iter().filter(|d| d.total > 0).count();
+                if self.disk_state.selected().is_none() && disk_count > 0 {
+                    self.disk_state.select(Some(0));
+                }
+            }
+            KeyCode::Char('5') => self.active_tab = ViewTab::Virt,
             KeyCode::Char('6') => self.active_tab = ViewTab::Gpu,
             KeyCode::Char('7') => {
                 self.active_tab = ViewTab::Ports;
@@ -766,14 +806,12 @@ impl App {
             KeyCode::Char('a') => self.show_all_processes = !self.show_all_processes,
             KeyCode::Char('g') => self.show_graphs = !self.show_graphs,
             KeyCode::Char('c') => self.compact_mode = !self.compact_mode,
-            KeyCode::Char('d') => self.show_docker = !self.show_docker,
             #[cfg(feature = "docker")]
             KeyCode::Char('l') => {
                 // View logs for selected docker container
-                if self.active_tab == ViewTab::Docker && !self.docker_containers.is_empty() {
-                    let idx = self.docker_state.selected().unwrap_or(0);
-                    if let Some(container) = self.docker_containers.get(idx) {
-                        self.fetch_container_logs(&container.id.clone(), &container.name.clone());
+                if self.active_tab == ViewTab::Virt {
+                    if let Some(container) = self.get_selected_container().cloned() {
+                        self.fetch_container_logs(&container.id, &container.name);
                     }
                 }
             }
@@ -787,6 +825,10 @@ impl App {
             KeyCode::F(6) => self.set_sort(SortColumn::Memory),
             KeyCode::F(7) => self.set_sort(SortColumn::DiskIo),
             KeyCode::F(8) => self.set_sort(SortColumn::GpuMemory),
+            KeyCode::Left => self.cycle_tab(-1),
+            KeyCode::Right => self.cycle_tab(1),
+            KeyCode::Char('[') => self.cycle_sort_column(-1),
+            KeyCode::Char(']') => self.cycle_sort_column(1),
             KeyCode::Char('r') => self.sort_ascending = !self.sort_ascending,
             KeyCode::Char('/') => {
                 self.process_filter.clear();
@@ -811,12 +853,26 @@ impl App {
             #[cfg(feature = "docker")]
             KeyCode::Enter => {
                 // On Docker tab, open HTTP request dialog for selected container
-                if self.active_tab == ViewTab::Docker && !self.docker_containers.is_empty() {
-                    let idx = self.docker_state.selected().unwrap_or(0);
-                    if let Some(container) = self.docker_containers.get(idx) {
-                        // Extract first port mapping
-                        let port = container.ports.split("->").next()
-                            .and_then(|s| s.trim().parse::<u16>().ok())
+                if self.active_tab == ViewTab::Virt {
+                    if let Some(container) = self.get_selected_container().cloned() {
+                        // Extract first port mapping (format: "8080->8080/tcp" or "8080/tcp")
+                        let port = container.ports
+                            .split(',')
+                            .next()
+                            .and_then(|p| {
+                                // Handle "0.0.0.0:8080->8080/tcp" or "8080/tcp"
+                                let p = p.trim();
+                                if let Some(arrow_pos) = p.find("->") {
+                                    // Get port before arrow, after last colon
+                                    let before_arrow = &p[..arrow_pos];
+                                    before_arrow.rsplit(':').next()
+                                        .and_then(|s| s.parse::<u16>().ok())
+                                } else {
+                                    // No arrow, try to parse directly
+                                    p.split('/').next()
+                                        .and_then(|s| s.parse::<u16>().ok())
+                                }
+                            })
                             .unwrap_or(8080);
                         self.http_request = HttpRequestState {
                             visible: true,
@@ -1135,10 +1191,66 @@ impl App {
         }
     }
 
+    /// Cycle through view tabs with left/right arrows.
+    fn cycle_tab(&mut self, delta: i32) {
+        let tabs = [
+            ViewTab::Overview,
+            ViewTab::Processes,
+            ViewTab::Network,
+            ViewTab::Disks,
+            ViewTab::Virt,
+            ViewTab::Gpu,
+            ViewTab::Ports,
+        ];
+        let idx = tabs.iter().position(|&t| t == self.active_tab).unwrap_or(0);
+        let new_idx = if delta > 0 {
+            (idx + 1) % tabs.len()
+        } else {
+            (idx + tabs.len() - 1) % tabs.len()
+        };
+        self.active_tab = tabs[new_idx];
+    }
+
+    /// Cycle through sort columns with [ and ] keys.
+    fn cycle_sort_column(&mut self, delta: i32) {
+        // Only works in Processes view
+        if self.active_tab != ViewTab::Processes && self.active_tab != ViewTab::Overview {
+            return;
+        }
+
+        let columns = [
+            SortColumn::Pid,
+            SortColumn::Name,
+            SortColumn::User,
+            SortColumn::Cpu,
+            SortColumn::Memory,
+            SortColumn::DiskIo,
+        ];
+
+        let current = match self.active_panel {
+            ActivePanel::CpuProcesses => self.cpu_sort,
+            ActivePanel::GpuProcesses => self.gpu_sort,
+            ActivePanel::Ports => return,
+        };
+
+        let idx = columns.iter().position(|&c| c == current).unwrap_or(3); // Default to CPU
+        let new_idx = if delta > 0 {
+            (idx + 1) % columns.len()
+        } else {
+            (idx + columns.len() - 1) % columns.len()
+        };
+
+        match self.active_panel {
+            ActivePanel::CpuProcesses => self.cpu_sort = columns[new_idx],
+            ActivePanel::GpuProcesses => self.gpu_sort = columns[new_idx],
+            ActivePanel::Ports => {}
+        }
+    }
+
     /// Move the selection by a delta.
     fn move_selection(&mut self, delta: i32) {
         // Docker tab: navigate docker containers
-        if self.active_tab == ViewTab::Docker {
+        if self.active_tab == ViewTab::Virt {
             let len = self.docker_containers.len();
             if len == 0 { return; }
             let current = self.docker_state.selected().unwrap_or(0);
@@ -1148,6 +1260,20 @@ impl App {
                 current.saturating_sub((-delta) as usize)
             };
             self.docker_state.select(Some(new));
+            return;
+        }
+
+        // Disks tab: navigate disk list
+        if self.active_tab == ViewTab::Disks {
+            let len = self.system_metrics.disks.iter().filter(|d| d.total > 0).count();
+            if len == 0 { return; }
+            let current = self.disk_state.selected().unwrap_or(0);
+            let new = if delta > 0 {
+                (current + delta as usize).min(len - 1)
+            } else {
+                current.saturating_sub((-delta) as usize)
+            };
+            self.disk_state.select(Some(new));
             return;
         }
 
@@ -1193,10 +1319,17 @@ impl App {
 
     /// Move the selection to a specific position.
     fn move_selection_to(&mut self, pos: usize) {
-        if self.active_tab == ViewTab::Docker {
+        if self.active_tab == ViewTab::Virt {
             let len = self.docker_containers.len();
             if len == 0 { return; }
             self.docker_state.select(Some(pos.min(len - 1)));
+            return;
+        }
+
+        if self.active_tab == ViewTab::Disks {
+            let len = self.system_metrics.disks.iter().filter(|d| d.total > 0).count();
+            if len == 0 { return; }
+            self.disk_state.select(Some(pos.min(len - 1)));
             return;
         }
 

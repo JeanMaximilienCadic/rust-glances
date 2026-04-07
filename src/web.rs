@@ -93,7 +93,7 @@ impl WebState {
         self.networks.refresh();
 
         // Every 5 cycles: disks, components/temps
-        if self.refresh_count % 5 == 0 {
+        if self.refresh_count.is_multiple_of(5) {
             self.disks.refresh();
             self.components.refresh();
         }
@@ -125,7 +125,7 @@ impl WebState {
 
         // Parallel collection of independent metrics
         let gpu_enabled = self.gpu_enabled;
-        let do_slow = self.refresh_count % 5 == 0;
+        let do_slow = self.refresh_count.is_multiple_of(5);
 
         std::thread::scope(|s| {
             // GPU (independent)

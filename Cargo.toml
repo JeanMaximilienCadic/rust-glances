@@ -1,6 +1,6 @@
 [package]
 name = "glances"
-version = "0.8.3"
+version = "0.9.0"
 edition = "2021"
 description = "A modern Glances-inspired TUI system monitor written in Rust — CPU, memory, GPU, Docker, network, disk, battery, alerts, and container API testing"
 license = "MIT"
@@ -28,8 +28,9 @@ crossterm = "0.28"
 # System metrics
 sysinfo = "0.32"
 
-# Async runtime
-tokio = { version = "1", features = ["full"] }
+# Async runtime (minimal features for faster compilation)
+# Note: "net" is needed for web feature's TcpListener
+tokio = { version = "1", features = ["rt-multi-thread", "time", "sync", "net"] }
 
 # Error handling
 anyhow = "1.0"
@@ -80,7 +81,20 @@ metal = { version = "0.31", optional = true }
 core-foundation = { version = "0.10", optional = true }
 objc2 = { version = "0.6", optional = true }
 
+# Dev profile - optimized for fast compilation
+[profile.dev]
+opt-level = 0
+debug = true
+incremental = true
+
+# Dev with optimizations (for testing performance)
+[profile.dev.package."*"]
+opt-level = 2
+
+# Release profile - optimized for binary size and performance
 [profile.release]
-lto = true
-codegen-units = 1
-panic = "abort"
+lto = "thin"           # Use thin LTO for faster builds (vs full LTO)
+codegen-units = 1      # Better optimization
+panic = "abort"        # Smaller binary
+strip = true           # Strip symbols for smaller binary
+opt-level = 3          # Maximum optimization

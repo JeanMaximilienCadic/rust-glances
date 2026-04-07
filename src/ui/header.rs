@@ -33,6 +33,8 @@ pub fn render_header(frame: &mut Frame, area: Rect, app: &App) {
         String::new()
     };
 
+    let version = env!("CARGO_PKG_VERSION");
+
     let mut header = Line::from(vec![
         Span::styled(
             " glances ",
@@ -40,6 +42,11 @@ pub fn render_header(frame: &mut Frame, area: Rect, app: &App) {
                 .fg(Color::Rgb(130, 170, 255))
                 .add_modifier(Modifier::BOLD),
         ),
+        Span::styled(
+            format!("v{}", version),
+            Style::default().fg(Color::Rgb(180, 180, 220)),
+        ),
+        Span::styled(" ", Style::default()),
         Span::styled("│ ", Style::default().fg(Color::Rgb(60, 60, 80))),
         Span::styled(
             &app.system_metrics.hostname,

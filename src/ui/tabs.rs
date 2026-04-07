@@ -17,7 +17,7 @@ pub fn render_tabs(frame: &mut Frame, area: Rect, app: &App) {
         (ViewTab::Processes, "Processes"),
         (ViewTab::Network, "Network"),
         (ViewTab::Disks, "Disks"),
-        (ViewTab::Docker, "Docker"),
+        (ViewTab::Virt, "Virt"),
         (ViewTab::Gpu, "GPU"),
         (ViewTab::Ports, "Ports"),
     ];
