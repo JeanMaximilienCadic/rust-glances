@@ -12,11 +12,25 @@ use crate::app::{AlertLevel, App};
 
 /// Render the alerts panel with process details.
 pub fn render_alerts_panel(frame: &mut Frame, area: Rect, app: &App) {
-    if app.alerts.is_empty() {
+    let max_lines = area.height.saturating_sub(2) as usize;
+    let ongoing_count = app.alerts.iter().filter(|a| a.ongoing).count();
+
+    // Show "No active alerts" when empty
+    if app.alerts.is_empty() || ongoing_count == 0 {
+        let block = Block::default()
+            .borders(Borders::ALL)
+            .border_type(BorderType::Rounded)
+            .title(" Alerts ")
+            .border_style(Style::default().fg(Color::Rgb(80, 100, 80)));
+
+        let text = Line::from(Span::styled(
+            " ✓ No active alerts",
+            Style::default().fg(Color::Rgb(80, 180, 80)),
+        ));
+
+        frame.render_widget(Paragraph::new(text).block(block), area);
         return;
     }
-
-    let max_lines = area.height.saturating_sub(2) as usize;
 
     // Show ongoing alerts first, then most recent resolved
     let mut sorted = app.alerts.clone();
@@ -63,7 +77,6 @@ pub fn render_alerts_panel(frame: &mut Frame, area: Rect, app: &App) {
         ]));
     }
 
-    let ongoing_count = app.alerts.iter().filter(|a| a.ongoing).count();
     let title = if ongoing_count > 0 {
         format!(" Alerts ({} active) ", ongoing_count)
     } else {

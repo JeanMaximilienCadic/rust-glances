@@ -43,6 +43,7 @@ pub fn render_cpu_processes(frame: &mut Frame, area: Rect, app: &mut App) {
         "MEM".into(),
         format!("IO{}", sort_indicator(SortColumn::DiskIo)),
         "ST".into(),
+        "V".into(), // Virtualized: D=Docker, L=LXC, K=K8s, P=Podman, C=Container
         format!("NAME{}", sort_indicator(SortColumn::Name)),
         "COMMAND".into(),
     ])
@@ -68,6 +69,16 @@ pub fn render_cpu_processes(frame: &mut Frame, area: Rect, app: &mut App) {
                 "0".into()
             };
 
+            // Virtualization indicator color
+            let virt_color = match p.virtualized.as_str() {
+                "D" => Color::Rgb(0, 150, 255),   // Docker - blue
+                "L" => Color::Rgb(255, 140, 0),   // LXC - orange
+                "K" => Color::Rgb(50, 200, 50),   // Kubernetes - green
+                "P" => Color::Rgb(140, 80, 200),  // Podman - purple
+                "C" => Color::Rgb(200, 200, 50),  // Generic container - yellow
+                _ => Color::DarkGray,
+            };
+
             Row::new(vec![
                 Cell::from(format!("{}", p.pid)),
                 Cell::from(p.user.clone()).style(Style::default().fg(Color::Cyan)),
@@ -76,6 +87,7 @@ pub fn render_cpu_processes(frame: &mut Frame, area: Rect, app: &mut App) {
                 Cell::from(format_size(p.memory_bytes, BINARY)),
                 Cell::from(io_str).style(Style::default().fg(if total_io > 0.0 { Color::Rgb(255, 180, 50) } else { Color::DarkGray })),
                 Cell::from(p.status.clone()),
+                Cell::from(p.virtualized.clone()).style(Style::default().fg(virt_color)),
                 Cell::from(p.name.clone()).style(Style::default().fg(Color::Rgb(80, 220, 120))),
                 Cell::from(p.command.clone()).style(Style::default().fg(Color::DarkGray)),
             ])
@@ -97,14 +109,15 @@ pub fn render_cpu_processes(frame: &mut Frame, area: Rect, app: &mut App) {
         rows,
         [
             ratatui::layout::Constraint::Length(7),  // PID
-            ratatui::layout::Constraint::Length(10), // USER
+            ratatui::layout::Constraint::Length(8),  // USER
             ratatui::layout::Constraint::Length(6),  // CPU%
             ratatui::layout::Constraint::Length(6),  // MEM%
-            ratatui::layout::Constraint::Length(9),  // MEM
-            ratatui::layout::Constraint::Length(7),  // IO
-            ratatui::layout::Constraint::Length(3),  // ST
-            ratatui::layout::Constraint::Length(15), // NAME
-            ratatui::layout::Constraint::Min(0),    // COMMAND — uses all remaining width
+            ratatui::layout::Constraint::Length(10), // MEM (increased)
+            ratatui::layout::Constraint::Length(6),  // IO
+            ratatui::layout::Constraint::Length(2),  // ST
+            ratatui::layout::Constraint::Length(2),  // V (Virtualized)
+            ratatui::layout::Constraint::Length(12), // NAME
+            ratatui::layout::Constraint::Min(10),    // COMMAND — uses remaining width (min 10)
         ],
     )
     .block(

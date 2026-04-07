@@ -135,34 +135,50 @@ fn main() -> Result<()> {
 
 fn run_app(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>, app: &mut App) -> Result<()> {
     let mut last_tick = Instant::now();
+    let mut needs_redraw = true;
+
+    // Poll timeout: balance between responsiveness and CPU usage
+    // 50ms = 20fps max for UI, but input is still responsive
+    let poll_timeout = Duration::from_millis(50);
 
     while app.running {
-        terminal.draw(|f| render_ui(f, app))?;
+        // Only redraw when something changed
+        if needs_redraw {
+            terminal.draw(|f| render_ui(f, app))?;
+            needs_redraw = false;
+        }
 
-        let timeout = app
-            .refresh_rate
-            .checked_sub(last_tick.elapsed())
-            .unwrap_or(Duration::from_millis(0));
-
-        if event::poll(timeout).context("Failed to poll events")? {
+        // Poll for events with timeout
+        if event::poll(poll_timeout).context("Failed to poll events")? {
             match event::read().context("Failed to read event")? {
                 Event::Key(key) => {
                     app.handle_key(key.code, key.modifiers);
+                    needs_redraw = true;
                 }
                 Event::Mouse(mouse) => {
                     app.handle_mouse(mouse.kind, mouse.column, mouse.row);
+                    needs_redraw = true;
+                }
+                Event::Resize(_, _) => {
+                    needs_redraw = true;
                 }
                 _ => {}
             }
         }
 
+        // Refresh data at the configured rate
         if last_tick.elapsed() >= app.refresh_rate {
             app.refresh_all()?;
             last_tick = Instant::now();
+            needs_redraw = true;
         }
 
-        // Clear old status messages
+        // Clear old status messages (may need redraw)
+        let had_status = app.status_message.is_some();
         app.clear_old_status();
+        if had_status && app.status_message.is_none() {
+            needs_redraw = true;
+        }
     }
 
     Ok(())

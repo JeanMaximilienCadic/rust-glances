@@ -3,6 +3,24 @@
 use std::collections::HashMap;
 use tokio::runtime::Runtime;
 
+/// Port mapping info for a container.
+#[derive(Clone, Debug, serde::Serialize, PartialEq, Eq, PartialOrd, Ord)]
+pub struct PortMapping {
+    pub host_port: u16,
+    pub container_port: u16,
+    pub protocol: String,
+    pub host_ip: String,
+}
+
+/// Volume mount info for a container.
+#[derive(Clone, Debug, serde::Serialize, PartialEq, Eq, PartialOrd, Ord)]
+pub struct VolumeMount {
+    pub source: String,
+    pub destination: String,
+    pub mode: String, // "rw" or "ro"
+    pub mount_type: String, // "bind", "volume", "tmpfs"
+}
+
 /// Information about a running Docker container.
 #[derive(Clone, Default, Debug, serde::Serialize)]
 #[allow(dead_code)]
@@ -21,6 +39,8 @@ pub struct ContainerInfo {
     pub block_read: u64,
     pub block_write: u64,
     pub ports: String,
+    pub port_mappings: Vec<PortMapping>,
+    pub volume_mounts: Vec<VolumeMount>,
     pub created: i64,
     pub uptime_secs: u64,
     pub compose_project: String,
@@ -81,27 +101,70 @@ pub fn collect_docker_metrics(handle: &DockerHandle) -> Vec<ContainerInfo> {
         let status = container.status.clone().unwrap_or_default();
         let state = container.state.clone().unwrap_or_default();
 
-        // Port mappings
-        let ports = container
+        // Port mappings - parse into structs and sort
+        let mut port_mappings: Vec<PortMapping> = container
             .ports
             .as_ref()
             .map(|ports| {
                 ports
                     .iter()
                     .filter_map(|p| {
-                        let private = p.private_port;
-                        let public = p.public_port.unwrap_or(0);
-                        let proto = p.typ.as_ref().map(|t| format!("{t}")).unwrap_or_default();
-                        if public > 0 {
-                            Some(format!("{}->{}/{}", public, private, proto))
+                        let container_port = p.private_port;
+                        let host_port = p.public_port.unwrap_or(0);
+                        let protocol = p.typ.as_ref().map(|t| format!("{t}")).unwrap_or_else(|| "tcp".into());
+                        let host_ip = p.ip.clone().unwrap_or_default();
+                        if host_port > 0 {
+                            Some(PortMapping {
+                                host_port,
+                                container_port,
+                                protocol,
+                                host_ip,
+                            })
                         } else {
-                            Some(format!("{}/{}", private, proto))
+                            None
                         }
                     })
-                    .collect::<Vec<_>>()
-                    .join(", ")
+                    .collect()
             })
             .unwrap_or_default();
+
+        // Sort ports by host_port for consistent display
+        port_mappings.sort();
+
+        // Format ports string from sorted mappings
+        let ports = port_mappings
+            .iter()
+            .map(|p| {
+                if p.host_ip.is_empty() || p.host_ip == "0.0.0.0" {
+                    format!("{}:{}/{}", p.host_port, p.container_port, p.protocol)
+                } else {
+                    format!("{}:{}:{}/{}", p.host_ip, p.host_port, p.container_port, p.protocol)
+                }
+            })
+            .collect::<Vec<_>>()
+            .join(", ");
+
+        // Volume mounts
+        let mut volume_mounts: Vec<VolumeMount> = container
+            .mounts
+            .as_ref()
+            .map(|mounts| {
+                mounts
+                    .iter()
+                    .map(|m| {
+                        VolumeMount {
+                            source: m.source.clone().unwrap_or_default(),
+                            destination: m.destination.clone().unwrap_or_default(),
+                            mode: if m.rw.unwrap_or(true) { "rw".into() } else { "ro".into() },
+                            mount_type: m.typ.as_ref().map(|t| format!("{t}")).unwrap_or_else(|| "bind".into()),
+                        }
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+
+        // Sort mounts by destination for consistent display
+        volume_mounts.sort_by(|a, b| a.destination.cmp(&b.destination));
 
         // Uptime from created timestamp
         let created = container.created.unwrap_or(0);
@@ -130,6 +193,8 @@ pub fn collect_docker_metrics(handle: &DockerHandle) -> Vec<ContainerInfo> {
             status,
             state,
             ports,
+            port_mappings,
+            volume_mounts,
             created,
             uptime_secs,
             compose_project,
@@ -143,10 +208,11 @@ pub fn collect_docker_metrics(handle: &DockerHandle) -> Vec<ContainerInfo> {
 }
 
 /// Collect stats for containers (CPU/memory/network) — called separately to keep list fast.
+/// `prev_cpu` stores (container_cpu_usage, system_cpu_usage) per container for delta calculation.
 pub fn collect_docker_stats(
     handle: &DockerHandle,
     containers: &mut [ContainerInfo],
-    _prev_cpu: &mut HashMap<String, (u64, u64)>,
+    prev_cpu: &mut HashMap<String, (u64, u64)>,
 ) {
     let Some(ref docker) = handle.docker else { return };
     let Some(ref rt) = handle.runtime else { return };
@@ -172,18 +238,26 @@ pub fn collect_docker_stats(
         let stats_result = rt.block_on(stats_future);
 
         if let Ok(Some(Ok(stats))) = stats_result {
-            // CPU
-            let cpu_delta = stats
-                .cpu_stats
-                .cpu_usage
-                .total_usage
-                .saturating_sub(stats.precpu_stats.cpu_usage.total_usage);
-            let system_delta = stats
-                .cpu_stats
-                .system_cpu_usage
-                .unwrap_or(0)
-                .saturating_sub(stats.precpu_stats.system_cpu_usage.unwrap_or(0));
+            // CPU: use our own stored previous values for reliable delta
+            let current_cpu = stats.cpu_stats.cpu_usage.total_usage;
+            let current_system = stats.cpu_stats.system_cpu_usage.unwrap_or(0);
             let num_cpus = stats.cpu_stats.online_cpus.unwrap_or(1);
+
+            // Get previous values or use precpu_stats as fallback
+            let (prev_cpu_usage, prev_system_usage) = prev_cpu
+                .get(&id)
+                .copied()
+                .unwrap_or((
+                    stats.precpu_stats.cpu_usage.total_usage,
+                    stats.precpu_stats.system_cpu_usage.unwrap_or(0),
+                ));
+
+            // Store current values for next iteration
+            prev_cpu.insert(id.clone(), (current_cpu, current_system));
+
+            // Calculate deltas
+            let cpu_delta = current_cpu.saturating_sub(prev_cpu_usage);
+            let system_delta = current_system.saturating_sub(prev_system_usage);
 
             if system_delta > 0 {
                 container.cpu_percent =

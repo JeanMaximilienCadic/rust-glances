@@ -63,7 +63,8 @@ A full terminal UI with real-time monitoring, graphs, and interactive process ma
 - **Battery** -- charge level and state in header
 - **Sensors** -- temperature readings with color-coded thresholds
 - **Power** -- Intel RAPL power draw per domain (package, core, uncore, dram)
-- **Processes** -- sortable by CPU, memory, disk I/O, with kill support and filtering
+- **Processes** -- sortable by CPU, memory, disk I/O, with kill support, filtering, and virtualization detection (Docker/LXC/Kubernetes/Podman containers marked with D/L/K/P)
+- **Port Forwarding** -- iptables NAT DNAT rules shown in network view
 
 #### GPU Monitoring
 

@@ -56,6 +56,17 @@ pub struct NetworkInfo {
     pub tx_rate: f64,
 }
 
+/// Port forwarding rule (from iptables NAT or nftables).
+#[derive(Clone, Default, Serialize, PartialEq, Eq, PartialOrd, Ord)]
+pub struct PortForwardRule {
+    pub protocol: String,      // tcp, udp
+    pub src_ip: String,        // source IP or "any"
+    pub src_port: u16,         // source port (external)
+    pub dest_ip: String,       // destination IP
+    pub dest_port: u16,        // destination port (internal)
+    pub interface: String,     // interface name if specific
+}
+
 /// Process information.
 #[derive(Clone, Default, Serialize)]
 pub struct ProcessInfo {
@@ -69,6 +80,8 @@ pub struct ProcessInfo {
     pub disk_write_rate: f64,
     pub status: String,
     pub command: String,
+    /// Virtualization indicator: "D" for Docker, "L" for LXC, "C" for container (generic), empty for host
+    pub virtualized: String,
 }
 
 /// GPU information from NVML.
@@ -122,6 +135,7 @@ pub struct SystemMetrics {
     pub memory: MemoryInfo,
     pub disks: Vec<DiskInfo>,
     pub networks: Vec<NetworkInfo>,
+    pub port_forwards: Vec<PortForwardRule>,
     pub processes: Vec<ProcessInfo>,
     pub process_count: usize,
     pub thread_count: usize,
