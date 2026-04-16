@@ -108,6 +108,7 @@ jobs:
 
   release:
     needs: [check-version, build]
+    if: always() && needs.check-version.outputs.changed == 'true' && !contains(needs.build.result, 'cancelled')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
